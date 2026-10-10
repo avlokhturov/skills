@@ -1,0 +1,101 @@
+---
+name: ship-release
+description: "Carry merged, accepted work to its users: version by the project's scheme, release notes written in what users can do, migrations with their reverse, rollout by environment with a check after each step and a rollback decided before any step runs. It goes through the project's own pipeline and invents none. Use when the user asks to release, ship, publish or deploy, or agrees to a release being proposed; it starts only on the user's request or agreement, because it publishes and changes what runs for users."
+---
+
+# Ship release
+
+The merge is the owner's acceptance of what the code does; the release is
+the stage that takes it to the people who use it — the transition the
+protocol's [life cycle](references/lifecycle.md) names. It publishes and it
+changes what runs for users, so it starts when the user asks for one or
+agrees to it, never on its own initiative. Every step that cannot be taken
+back reaches the owner first, worked as a decision with its mechanism by
+[deciding.md](references/deciding.md)'s **A design decision comes with its
+mechanism**; the irreversible choices of [running.md](references/running.md)'s
+**Autonomy** are theirs here as anywhere.
+
+Everything the owner reads follows the protocol's [**Speaking to the
+owner**](references/speaking.md).
+
+## 1. What reaching users takes here
+
+Read what the project already has before building anything: how it
+versions, who its users are, and what exists for reaching them — the
+pipeline that builds, checks and releases, the environments a release
+passes through and the parity between them, where the settings and secrets
+live. None of this is designed for the release: the project's form for what
+it runs was decided once, by
+[building.md](references/building.md)'s **The project's form is decided
+once**, and where a form this release needs is not recorded, it is proposed
+to the owner here as one decision with the options and their costs, taken
+before the release invents it piece by piece.
+
+How far this walk goes is what the project is, by the life cycle's
+**Tailoring is the rule**: a library releases by publishing; an internal
+tool's transition may narrow to its merge, and its release then is the
+record of where the work reached its users and nothing more; a service with
+users takes the path below. A stage the project does not use is named
+skipped with its reason where the release is recorded, never left off in
+silence.
+
+## 2. Version and notes
+
+The version rises by the scheme the project versions by — semantic
+versioning is the common one. The notes tell users what has changed, kept
+in the form the project's users read changes (Keep a Changelog's is the
+common one), and are taken from the accepted work rather than the diff:
+what a user can now do, in the words the stages' acceptance used. Where the
+project has a backlog integration, the work closed since the last release
+is read from the tracker at this one step; without one, the history over
+the same span on the product's branches is. Statuses, identifiers and the
+project's inner names stay out of the notes, by **Speaking to the owner**;
+a change no user can notice words itself for whoever operates the release,
+or stays out.
+
+## 3. Reversible first
+
+The release is where the work stops being safe to undo, so every step's
+reverse is decided before the step runs:
+
+- **Migrations and their reverse.** Data and schema changes go out in the
+  expand-and-contract shape: forward while the old shape is still read,
+  then move, then contract once nothing reads what was left. A migration
+  that cannot give its reverse — data moving one way, nothing able to read
+  it back — is a one-way step, put to the owner before it runs, with what
+  it would destroy and what the alternatives cost.
+- **Rollout by environment.** The change goes to the narrowest environment
+  first and widens step by step (progressive delivery), each widening
+  behind what the product can already call off in flight (its feature
+  flags). Before a step runs, its rollback is named: what undoes it, who
+  can run the undo, how long it takes. Deciding the rollback while the
+  rollout fails costs the incident its fastest move —
+  `handle-incident`'s restore works on the reverses the release named.
+- **A check after each step.** Rolled out and not observed is not
+  released: the measure the design's scenarios named —
+  [design.md](references/design.md)'s **Scenarios become checks** — is
+  read where this step's users meet it, and the step's reverses stay in
+  hand until it has. A widening that cannot show its measure yet is
+  widened no further until it can.
+
+## 4. What the release now makes measurable
+
+The outcomes this release carries settle beliefs that waited for exactly
+this: where the product keeps its documents, each hypothesis whose test
+waited on the release that carried the outcomes now shipped is marked
+waiting on its measure, by [product.md](references/product.md)'s
+hypothesis form. The release does not read the measures — that is
+`define-product`'s step, and the next milestone's charter is planned with
+the results, by `to-milestone`. The release's report names what now waits
+on a measure, so the wait is visible to the owner in the same words everywhere.
+
+## 5. Land, and end with the next step
+
+Version, notes and the release's record land by the protocol's
+[**Sessions and landing**](references/running.md) — with the session's own
+writes, never a merge of their own — and nothing reaches a user-facing
+channel beyond what the ask that started this release named. The report
+closes with what happens next: a hypothesis whose measure is now due
+reads to `define-product`; a release whose step turned red reads through
+`handle-incident`; a project that releases again soon starts its next one
+from here.

@@ -22,14 +22,18 @@ hold before the next, and the skills that do it:
 | Implementation | the code exists | workers hand in results with their local checks, on the feature's branch | `take-task` |
 | Integration | the results are one change | every submitted result is merged and the checks its merge touched are rerun on the merge | `take-task` |
 | Verification | the change does what the requirements say | the full checks, mutation where the project has one, review and the DONE WHEN hold on the assembled revision | `take-task` |
-| Transition | the change reaches its users | the work lands on the main line and is released the way this project releases | no skill yet |
-| Validation | it is the right thing | before release, the outcome is seen at the place the spec named, by [checks.md](checks.md)'s **Reached, not just built**; after release, that it solved the need | before release, that check; after release, no skill yet |
-| Operation | it keeps working for its users | — | no skill yet |
-| Maintenance | faults and debt are taken as they are found | a fault is diagnosed on evidence, and what matters is filed | `diagnose-bug` and `to-backlog`; upkeep of what runs it: no skill yet |
+| Transition | the change reaches its users | the work lands on the main line and is released the way this project releases | `ship-release` |
+| Validation | it is the right thing | before release, the outcome is seen at the place the spec named, by [checks.md](checks.md)'s **Reached, not just built**; after release, that it solved the need | before release, that check; after release, the release marks the hypotheses its outcomes settle as waiting on their measures, and their results are read by `define-product` and planned with by `to-milestone` |
+| Operation | it keeps working for its users | the alerts and their runbooks the design's **Scenarios become checks** produced, and, where the product has users, the service level it is judged by | `handle-incident` for what fails in use |
+| Maintenance | faults and debt are taken as they are found | a fault is diagnosed on evidence, and what matters is filed | `diagnose-bug` and `to-backlog`; what runs it looks after itself on `check-upkeep`'s pass |
 
-The stages without a skill are named so deliberately: release, operations
-and upkeep, and the validation that follows release, are the next skills
-the set gains, and nothing else is written to fill their places meanwhile.
+Release, operation and upkeep carry skills of the set now — `ship-release`,
+`handle-incident` and `check-upkeep` — and the validation that follows
+release takes no skill of its own: a hypothesis's measure is read onto the
+record the hypothesis keeps, by [product.md](product.md)'s hypothesis form,
+and the next milestone is planned with the results. Each stage keeps the
+tailoring above: the skill a stage carries is offered and sized by what the
+piece of work and the project call for, never by the stage's existence.
 
 **Tailoring is the rule.** The standard above tails its own processes, and
 so does this set: the stages a piece of work passes are chosen by its

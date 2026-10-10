@@ -1,0 +1,5 @@
+interface:
+  display_name: "Handle Incident"
+  short_description: "Restore, explain and review an incident"
+policy:
+  allow_implicit_invocation: true

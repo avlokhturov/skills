@@ -6,6 +6,13 @@ Tracked work, proportional design and acceptance of an assembled stage.
 
 - [take-task](./take-task/SKILL.md): preflight with the owner, then run a whole
   feature alone to one pull request, stopping only for decisions that need them.
+- [ship-release](./ship-release/SKILL.md): carry merged, accepted work to its
+  users — version, release notes, migrations with their reverse, rollout by
+  environment with the rollback named before each step; through the project's
+  own pipeline.
+- [handle-incident](./handle-incident/SKILL.md): restore a failing product
+  first, then find the cause, then a blameless review whose actions are filed
+  as work.
 
 ## Started when the work calls for it
 

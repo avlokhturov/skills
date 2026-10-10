@@ -1,0 +1,5 @@
+interface:
+  display_name: "Check Upkeep"
+  short_description: "Read and file the project's upkeep findings"
+policy:
+  allow_implicit_invocation: true

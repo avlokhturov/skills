@@ -481,6 +481,10 @@ comment is judged, not obeyed**.
 Finish the run's record with the pull request. The owner's acceptance is the
 merge. After it, close the tasks, stages and feature through `close-out`, which
 also asks the owner how the run went, and remove the checkouts and branches this
-run created. A run that stops or hands over settles its worker sessions by **A
+run created. Where the change reaches its users later than the merge — the
+project deploys or publishes — the run ends by naming `ship-release` as the
+next stage, the life cycle's transition, with what reaching them takes here:
+the release is its own ask on the owner's word, and the work this run carried
+is done. A run that stops or hands over settles its worker sessions by **A
 started session answers to the one that started it**. Commit links and a clean
 backlog are required but never replace checking the behaviour.

@@ -1,6 +1,6 @@
 ---
 name: define-product
-description: "Talk a raw product idea through with the person who has it, in plain words, until an engineer could start, and write the product's documents behind the scenes: the conversation's record, hypotheses, user stories, use cases, product requirements and open questions. Use when someone has an idea but no requirements vocabulary, when a product owner wants their idea shaped, or when a product's documents are missing before its first feature."
+description: "Talk a raw product idea through with the person who has it, in plain words, until an engineer could start, and write the product's documents behind the scenes: the conversation's record, hypotheses, user stories, use cases, product requirements and open questions. Use when someone has an idea but no requirements vocabulary, when a product owner wants their idea shaped, when a product's documents are missing before its first feature, or when a hypothesis a release carried has its measure due and the result must be read onto the record."
 ---
 
 # Define a product
@@ -72,7 +72,10 @@ runs in it as the product's code repository.
 - **The record first** (`S-…`): their words as they said them, one line per
   turn, prefixed by who spoke; nothing summarised into it.
 - Then what the conversation established, each document citing the lines it
-  came from: the vision, hypotheses with their test and threshold, user
+  came from: the vision, hypotheses with their test and threshold — a test
+  that a user's behaviour settles only once they have the feature records
+  which release it waits on, by the hypothesis's
+  [form](references/product.md) — user
   stories for the first thing a user does, the use case with its steps and
   what can go wrong at each, the product requirements a user could observe,
   and an open question for each gap.
@@ -95,7 +98,24 @@ is still missing rather than filling it in:
 - what is out;
 - every open question with who can answer it.
 
-## 5. Close in plain words
+## 5. When a release has made a hypothesis's measure due
+
+A hypothesis whose test waits on a release becomes readable once that
+release is with its users. Read the measure as it stands and write it onto
+the hypothesis's record, by its [form](references/product.md): confirmed
+where the measure reaches the threshold the hypothesis recorded, refuted
+where it does not, inconclusive with why it could not read cleanly — too
+few using it, not the users the threshold assumed. A refuted hypothesis is
+news to the owner by the protocol's [**A claim reaches only as far as its
+evidence**](references/deciding.md): the belief, what it predicted, the
+measure now read, and what the answer changes — the direction, a
+requirement, a cost. The threshold is never moved to fit the measure's
+answer; that asks the belief questions until one gives the wanted one.
+Where the reading is asked for as part of planning the next slice,
+`to-milestone` plans with the results; the reading and the record stay
+this skill's.
+
+## 6. Close in plain words
 
 Tell the person, without document names or ids: what we now know, what we
 still believe and how it will be tested, what is left open and who will

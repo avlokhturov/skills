@@ -79,6 +79,17 @@ scenarios that cannot be automated are named with who will judge them and
 how, by [deciding.md](deciding.md)'s **A claim reaches only as far as its
 evidence**.
 
+The same scenarios are what the system is guarded by in use: what is
+logged, measured and alerted on comes from them, built with the feature
+and not after it, and each alert carries its runbook — one page of what to
+check first and how to stop the failure it fires on. Where the product has
+users, an alert a person answers is held to a service level as Google
+SRE's define them: an objective for the scenario, a measure over the
+indicator it is judged by, and an error budget; what is owed once the
+budget is spent — making the service more reliable first, building nothing
+new on it — is the design's own trade, decided before it becomes an
+emergency.
+
 **The owner hears only the trade.** By [deciding.md](deciding.md): what
 reaches the owner is a quality attribute traded for another — speed against
 clarity, cost against resilience — with its mechanism, its options and what

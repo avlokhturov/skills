@@ -509,6 +509,9 @@ export const PHASES = {
   handoff: 'wrap',
   'report-to-shady2k': 'wrap',
   'setup-shady2k-skills': 'setup',
+  'ship-release': 'build',
+  'handle-incident': 'debug',
+  'check-upkeep': 'plan',
 };
 export const PHASE_NAMES = ['orient', 'explore', 'plan', 'build', 'debug', 'wrap', 'setup', 'unattributed'];
 const phaseOf = (skill) => (skill ? PHASES[String(skill).split(':').pop()] : undefined);

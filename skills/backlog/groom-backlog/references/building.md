@@ -14,7 +14,12 @@ recorded project decision, taken once and followed by every change. Where the
 work needs a form the project has not recorded (the first screen needs a kit
 and tokens), the spec proposes it to the owner as a project-wide decision
 before the work invents one for itself; a form the work does not need yet
-stays a finding. Where a machine can check a rule (no literal colour or size
+stays a finding. So is what the product runs on: the environments a release
+passes through and the parity between them, where its settings and secrets
+live — outside the repository, with whatever runs the product — and the
+pipeline that builds, checks and releases it. These are project decisions
+taken once too, changed by a change that needs them to change; a release uses
+what is decided, and never invents a second path so it can ship. Where a machine can check a rule (no literal colour or size
 in a component, no bare element in a page, no import against the direction of
 dependencies), the project makes it a lint rule in the same change, so it
 binds instead of being remembered.

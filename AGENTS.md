@@ -67,7 +67,8 @@ Every skill can be started by the agent, because a user asks in words as often
 as by command: "yes, do it" must be enough, never "run this command and say
 this phrase". What differs is **who may start it**. Skills that change scope,
 run work, install, hand over or publish (`ask-shady2k`, setup, `to-milestone`,
-`take-task`, `handoff`, `report-to-shady2k`) start **only on the user's request
+`take-task`, `handoff`, `report-to-shady2k`, `ship-release`,
+`handle-incident`) start **only on the user's request
 or agreement**, and their descriptions say so; the others start when the work
 calls for them. Descriptions are model-facing with their triggers;
 `disable-model-invocation` is not used, and `policy.allow_implicit_invocation`

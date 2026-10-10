@@ -1,0 +1,5 @@
+interface:
+  display_name: "Ship Release"
+  short_description: "Release the accepted work to its users"
+policy:
+  allow_implicit_invocation: true

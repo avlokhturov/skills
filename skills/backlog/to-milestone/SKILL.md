@@ -37,7 +37,12 @@ Read `currentMilestone` from the gate config.
 ## 1. Read before asking
 
 Read the vision, the previous charter and the ending milestone's state: which
-outcomes are done and how many findings it took against its budget. Without a
+outcomes are done and how many findings it took against its budget. Where the
+project keeps its product documents, read too the results its hypotheses
+recorded since the last charter: a confirmed one is spent, and a refuted or
+inconclusive one is worked into the outcomes this charter proposes — what the
+belief was, the measure read against its recorded threshold, and what the
+answer changes for the direction. Without a
 vision, draft its direction, audience and exclusions from known decisions and
 recommend it. Ask only for missing requirements that matter. Record the agreed
 vision on one page at the integration's path.

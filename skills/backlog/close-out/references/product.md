@@ -78,10 +78,13 @@ only there); *optional* `Redacted:` what was removed. Section: `## Record`, the
 words themselves, absent for an outside source.
 
 **Hypothesis (`H-…`).** Field: `Grew from:` the vision, sources or questions.
-Sections: `## Belief` ("we believe that…"), `## Test` (what we will do),
-`## Metric` (what we will measure), `## Threshold` (the value that would
-confirm it), *optional* `## Result` (a result's id or what was learned),
-*optional* `## Sources`.
+Sections: `## Belief` ("we believe that…"), `## Test` (what we will do, and
+what it waits on: research, a prototype, or the release that carries the
+change), `## Metric` (what we will measure), `## Threshold` (the value that
+would confirm it), *optional* `## Result` (a result's id or what was
+learned; where the test waited on a release, the measure read against the
+threshold once that release is with its users — confirmed, refuted, or
+inconclusive with why), *optional* `## Sources`.
 
 **User story (`US-…`).** Field: `Grew from:` hypotheses or the vision.
 Sections: `## Story`, three list items, `- As: <role>`, `- I want: <goal>`,

@@ -178,7 +178,8 @@ the list.
 | new gate errors | their concrete fixes; `groom-backlog` for a broad cleanup |
 | results await merging or acceptance | resume that stage with `/take-task`; do not redo its tasks |
 | accepted work awaits closure | `close-out` with the acceptance record |
-| merged work whose transition is still outstanding — a project that deploys has not released it, a library has not published it | release — the next stage after landing; no skill yet, so say what release needs and that the set has none for it, rather than leaving the work done but unreached |
+| merged work whose transition is still outstanding — a project that deploys has not released it, a library has not published it | `/ship-release`: version and notes from the accepted work, migrations with their reverse, rollout by environment with the rollback named before each step, at the scale the project is |
+| a released hypothesis whose measure has come due | `define-product` reads the measure against the threshold the hypothesis recorded and writes the result on it; a refuted one reaches the owner as news |
 | all current outcomes accepted | `/to-milestone` |
 | new product without direction or first charter | `/to-milestone`, drafted from known decisions |
 | an open decision holds the ground the rest of the milestone stands on | that decision, worked, while the owner is here: `brainstorming`, or `to-spec` where its answer is a contract |
@@ -193,9 +194,11 @@ rather than duplicating it. A blocker in one stage does not block unrelated
 stages or features.
 
 The request itself can pick a helper: something new arriving is `to-backlog`, a
-diagnosis is `diagnose-bug`, an open product decision is `brainstorming`,
-gathering evidence is `to-research` or `to-prototype`, and a complaint about
-these skills themselves is `/report-to-shady2k`.
+diagnosis is `diagnose-bug`, a product failing in use is `handle-incident`,
+a routine look after what runs the product is `check-upkeep`, an open product
+decision is `brainstorming`, gathering evidence is `to-research` or
+`to-prototype`, and a complaint about these skills themselves is
+`/report-to-shady2k`.
 
 ## 5. Report
 
@@ -309,6 +312,15 @@ tracker is not this skill's.
   condition the owner put on work that already exists.
 - `close-out`: update current specs from accepted work, then close; keep
   pending work.
+- `ship-release`: merged, accepted work reaches its users — version and
+  notes, migrations with their reverse, rollout by environment with the
+  rollback named first; a library publishes, an internal tool may narrow
+  to its merge.
+- `handle-incident`: restore first, then the cause through `diagnose-bug`,
+  then a blameless review whose actions are filed as work.
+- `check-upkeep`: the pass over what runs the product — dependencies,
+  vulnerabilities, expiries, deprecated features, checks — files what it
+  finds.
 - `groom-backlog`: snapshot, agree the slice, clean up reversibly, verify.
 - `handoff`: keep the work's state true and leave what only this conversation
   knows where the next session will look.
