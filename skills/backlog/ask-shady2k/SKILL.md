@@ -146,7 +146,11 @@ with the evidence for each.
 **Ready is not a reason.** Before a leaf reaches the recommendation, check it
 by the protocol's **What would make the work obsolete is read before it is paid
 for**: where such work is open, that work is settled first and the leaf waits,
-however ready it is.
+however ready it is. For work already live, the ladder offers its next
+life-cycle stage, by the protocol's
+[life cycle](references/lifecycle.md): the stage the piece of work stands in
+decides what is offered next, with the tailoring's reason where a stage is
+skipped.
 
 The recommendation is the first row below that applies; its order makes you
 settle the ground and finish what is open before you start anything new. Then
@@ -174,11 +178,12 @@ the list.
 | new gate errors | their concrete fixes; `groom-backlog` for a broad cleanup |
 | results await merging or acceptance | resume that stage with `/take-task`; do not redo its tasks |
 | accepted work awaits closure | `close-out` with the acceptance record |
+| merged work whose transition is still outstanding — a project that deploys has not released it, a library has not published it | release — the next stage after landing; no skill yet, so say what release needs and that the set has none for it, rather than leaving the work done but unreached |
 | all current outcomes accepted | `/to-milestone` |
 | new product without direction or first charter | `/to-milestone`, drafted from known decisions |
 | an open decision holds the ground the rest of the milestone stands on | that decision, worked, while the owner is here: `brainstorming`, or `to-spec` where its answer is a contract |
 | a change is not ready by the document check | the concrete gap: missing contract, stale base or open decision; `to-spec` |
-| an outcome needs design or breaking down | `/take-task` picks the route, or `to-spec` for design only |
+| a live outcome's next stage is due: a decision the design owns, or a breaking down | `to-design` where the change changes the system's shape, by the protocol's [design.md](references/design.md); requirements where the behaviour is not yet written: `to-spec`; breaking down: `to-stages`; no design for a small bug or a trivial change, with the tailoring's reason; `/take-task` picks the route inside a feature |
 | a planned feature is ready | `/take-task` to run the whole feature to one pull request, if its run fits how long the project lets a branch live; otherwise split it first; mention what can run in parallel |
 | a feature is not yet planned enough to run alone | plan it with the owner (`brainstorming`, `to-spec`, `to-stages`), ending in `/take-task`'s preflight |
 | everything left is blocked or held | the result or owner that would unblock it; do not widen the milestone or invent work |
@@ -293,6 +298,8 @@ tracker is not this skill's.
 - `to-spec`: a short or full change to the living specs, with scenarios.
 - `to-stages`: stages as checkpoints, tasks sized for one worker, real
   dependencies and parallel tasks.
+- `to-design`: how the system will meet an outcome, decided against quality
+  attributes and existing patterns, and reviewed before building.
 - `diagnose-bug`: find a cause with evidence; fixing needs a tracked task.
 - `to-prototype`: a bounded runnable experiment.
 - `to-research`: a bounded investigation of primary sources, with citations.

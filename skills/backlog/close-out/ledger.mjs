@@ -497,6 +497,7 @@ export const PHASES = {
   'model-domain': 'explore',
   'define-product': 'plan',
   'to-spec': 'plan',
+  'to-design': 'plan',
   'to-stages': 'plan',
   'to-prototype': 'plan',
   'to-backlog': 'plan',

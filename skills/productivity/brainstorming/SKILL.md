@@ -111,7 +111,12 @@ unblocks the next step, not every question in the design. Do not pit your
 favourite against straw men.
 
 A choice about the design comes as the protocol's [**A design decision comes
-with its mechanism**](references/deciding.md) says. Once the user has decided,
+with its mechanism**](references/deciding.md) says. Where the choice is
+between designs of the system's shape — options built from patterns and
+traded against quality attribute scenarios — the protocol's
+[architecture and design](references/design.md) holds the standards, and a
+decision that will be built on belongs in `to-design`, which records it and
+has it reviewed before building. Once the user has decided,
 **A decision given is not reopened** and **A message that changes no next
 action is not sent** hold.
 

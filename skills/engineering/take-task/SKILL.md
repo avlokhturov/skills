@@ -39,7 +39,17 @@ work, R1 needed explanations, R0 did not understand where the work stood.
 Everything the owner reads follows the protocol's [**Speaking to the
 owner**](references/speaking.md).
 
-Size the design by **size, uncertainty and risk**, not by the TDD setting. A
+- **Trivial, reversible and understood** — a colour, a text, a constant: the
+  change plus its check, and the life cycle's [**The shortest path is the
+  default**](references/lifecycle.md): no spec, no stages, no design; the
+  task's line and the commit are the whole record, and the preflight asks
+  only what a run of that size still owes.
+
+Size the work by the protocol's
+[life cycle](references/lifecycle.md), its [**Tailoring is the
+rule**](references/lifecycle.md): which stages it passes — design included —
+is chosen by size, uncertainty and risk and by what the project is, and each
+skipped or narrowed stage is said with its reason, not silently left out. A
 small irreversible change can need more design than a large routine one.
 
 - **Small, understood change:** a short delta through `to-spec`, and one stage
@@ -49,7 +59,12 @@ small irreversible change can need more design than a large routine one.
   cause is unclear. Attach the bug to its stage, or through `to-stages` to a
   minimal one. A small bug needs no full spec.
 - **Uncertain or substantial work:** `brainstorming`, then `to-research` or
-  `to-prototype` where evidence is needed, then `to-spec` and `to-stages`.
+  `to-prototype` where evidence is needed, then `to-spec`; where the change
+  introduces or changes a building block, an interface, ownership of state,
+  a runtime interaction, an external dependency or an interface surface,
+  `to-design` before `to-stages`, by
+  [`references/design.md`](references/design.md)'s **Design runs when the
+  shape changes**.
 - **Research, setup or docs only:** the matching helper, with no invented
   product requirements. Export a `supporting` change with its scope reason and
   task, under the integration's check policy. This route never hides
@@ -64,7 +79,9 @@ needs and settle a real scope change with the owner.
 Before the owner leaves, prepare the run so it needs nobody:
 
 - the feature's spec and its stages exist; later stages may stay coarse, and the
-  coordinator breaks them into tasks when it reaches them, within the spec;
+  coordinator breaks them into tasks when it reaches them, within the spec.
+  On the shortest path above, the task's line is both, and this step asks
+  only what a run that size still owes: the branch, the checks, the estimate;
 - read the spec, the stages and the code the work lands in, and list every
   decision the run will meet: open forks, choices the spec leaves open, the
   assumptions you would otherwise make alone, the risks. Check what you can

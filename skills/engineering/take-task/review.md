@@ -32,6 +32,14 @@ Cover both sides, with parallel reviewers where useful:
   list that only grows, work every process repeats, state kept per process that
   must be shared. Judged against the load the project expects, which the
   reviewer finds in the project and states.
+- **The design the change builds on:** where the change introduces or
+  changes a building block, an interface, ownership of state, a runtime
+  interaction, an external dependency or an interface surface, the review
+  reads it against the design's decision records
+  ([`references/design.md`](references/design.md)) and against the quality
+  attribute scenarios the design recorded: whether the change still meets
+  each scenario, and whether every scenario a machine could judge became a
+  check instead of a hope.
 - **Diagnosability:** whether failures explain themselves: errors carry their
   causes, logs follow the project's levels and carry request and trace ids
   where requests cross components, no secrets or personal data are logged, and

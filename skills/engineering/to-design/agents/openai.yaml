@@ -1,0 +1,5 @@
+interface:
+  display_name: "To Design"
+  short_description: "Design the system's shape before building"
+policy:
+  allow_implicit_invocation: true

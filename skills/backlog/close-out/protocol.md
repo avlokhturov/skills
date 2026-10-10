@@ -27,6 +27,12 @@ file, read when a step needs it:
   outlive the work;
 - [starting.md](references/starting.md): a project from an empty folder, with
   not even an idea, to its first planned feature;
+- [lifecycle.md](references/lifecycle.md): the life cycle of a piece of work —
+  the stages, what must hold before the next, tailoring by scale,
+  uncertainty, risk and project, and which skill carries each stage;
+- [design.md](references/design.md): how a design is made and reviewed before
+  building — drivers, the existing shape, options from named patterns, the
+  recorded decision, the review and the scenarios that become checks;
 - [product.md](references/product.md): the product's own documents — sources,
   hypotheses, user stories, use cases, product requirements, open questions,
   prototypes and results — their forms, their links and their check;

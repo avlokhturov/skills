@@ -110,7 +110,12 @@ only a few concrete examples.
 
 ## Decisions
 What has been decided: the modules or systems touched and their interfaces,
-contracts, schema changes, the architecture, what the owner clarified.
+contracts, schema changes, what the owner clarified. Where the change
+introduces or changes a building block, an interface, ownership of state, a
+runtime interaction, an external dependency or an interface surface, the
+architecture is not decided here: `to-design` decides it after this spec,
+by the protocol's [architecture and design](references/design.md), and this
+section records what it decided.
 No file paths and no code: they go stale within the week. The one exception
 is a snippet a prototype produced that says a decision more exactly than prose
 can (a state machine, a schema, a type), trimmed to the part that decides.
@@ -149,5 +154,7 @@ incomplete draft may be kept as a draft but is never presented as ready to
 implement. Seek only the approvals that are required, bound to this proposal;
 never fake an approval flag. Ask for approval with the protocol's summary, not
 by sending the owner to read the spec. Publish through the authorized workflow. If the
-request includes execution or decomposition, continue with `to-stages`;
+request includes execution or decomposition, continue with `to-design`
+where the change changes the system's shape, by the protocol's
+[architecture and design](references/design.md), then `to-stages`;
 otherwise return the spec and recommend that step by name.

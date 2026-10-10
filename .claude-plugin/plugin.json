@@ -28,6 +28,7 @@
     "./skills/backlog/close-out",
     "./skills/backlog/groom-backlog",
     "./skills/engineering/to-spec",
+    "./skills/engineering/to-design",
     "./skills/engineering/take-task",
     "./skills/engineering/diagnose-bug",
     "./skills/engineering/to-prototype",
