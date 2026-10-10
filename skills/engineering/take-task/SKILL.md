@@ -404,7 +404,10 @@ forecast is checked against the target date again, by the protocol's **A
 forecast is checked against the date it serves**. Where the stage carries the spec's
 place of observation, walk the happy path there yourself the way a person
 reaches it, and record what you saw; a walk you could not make is recorded as
-not made. Mutation testing on the stage's changed logic starts once, here, as soon as
+not made. Where the stage's result follows a reference, acceptance's
+evidence is the comparison deciding.md's [**A claim reaches only as far as
+its evidence**](references/deciding.md) asks for, at the breadth checks.md's
+[**Reached, not just built**](references/checks.md) sets. Mutation testing on the stage's changed logic starts once, here, as soon as
 the revision is assembled, and runs beside the walk and the review, off the
 run's path: it measures how strong the tests are, not whether the change is
 right, and no next step consumes its result, so nothing waits on it, by
@@ -468,7 +471,8 @@ own checkout off that branch as soon as the run is submitted, by the protocol's
 few steps of the walk you made, every decision and assumption made alone,
 departures from the spec, review findings, what is not done, the checkouts and
 branches this run created and left, each with why, and the risks left.
-Wait for its checks to go green, reading its state by the protocol's **A state
+The yes waits for the owner's own look, by the
+protocol's [**Autonomy**](references/running.md). Wait for its checks to go green, reading its state by the protocol's **A state
 not yet known is not a good one**; fix a red one as part of the run, back in
 progress until the fix is proven locally, by the protocol's **CI is not where
 failures are diagnosed**. Review comments on it are handled by **A reviewer's

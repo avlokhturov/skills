@@ -48,7 +48,10 @@ do, what should happen. It leads with what the agent could not reach and what
 it cannot judge for itself, such as whether this is the right thing in the
 right words; it is not a tour of the feature. It follows [**Speaking to
 the owner**](speaking.md). The owner's acceptance is the merge; the tracker is closed after
-it.
+it. The yes is asked after the owner has looked — the **how to check it
+yourself** of the report is that look — or together with how to look: the
+agent's own assessment of the result, however good its evidence, never
+stands in for theirs.
 
 **The owner's time is the scarce one.** A run is cheap to restart; an hour of
 the owner's attention is not, and it is the only input the agents cannot

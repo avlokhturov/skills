@@ -109,6 +109,13 @@ test does, and record what was seen in the words of the outcome. A spec that
 named no place said there is nothing a person can see, and acceptance repeats
 that. A walk that needs what this machine has not got is reported as not made,
 never as passed, and becomes the first thing the owner is asked to check.
+The evidence of a walk, and of any acceptance, is sampled so the failure
+looked for could appear in it: a sample taken where capturing is easy — one
+viewport, one fixture, one size, the happy path — proves nothing about what
+it could not show. Where the result follows a reference, the comparison
+itself is the evidence, by
+[deciding.md](deciding.md)'s **A claim reaches only as far as its
+evidence**.
 
 **CI is not where failures are diagnosed.** A CI failure is a clue: read its
 log once, then reproduce it here, instrumented, recreating what CI has that
