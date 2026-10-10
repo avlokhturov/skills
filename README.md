@@ -5,7 +5,7 @@
 **Plan a feature with your agent in the evening. Accept a green pull request in
 the morning.**
 
-Sixteen skills for working as a
+Eighteen skills for working as a
 [product engineer](https://shady2k.ru/posts/product-engineer-role/) (in
 Russian): an engineer whose work ends not at the merge but at whether users
 solved their problem. You stop driving an agent step by step. You decide what
@@ -194,7 +194,7 @@ work up.
 | **Or join an existing project** | agree what is current, what waits and what was abandoned | read the code, the tracker and the history; clean up the queue reversibly | `setup-shady2k-skills`, `groom-backlog` | once, from half an hour to a few sessions for a neglected backlog |
 | **Agree the next version** (the first one is the MVP) | accept or change the outcomes, what is out, and how many new bugs it may absorb; cut the MVP | propose the charter from the vision and what is done | `to-milestone` | one conversation per version |
 | **Decide the architecture** | choose between options shown with their consequences | show the parts, the options and what each costs; record the decisions | `brainstorming`, `model-domain` | when a hard-to-reverse choice comes up |
-| **Plan a feature** | settle the behaviour and the open decisions; answer the preflight once | write the spec with checkable scenarios, split it into stages and tasks, collect every decision the run will need into one list with recommendations and a time estimate | `to-spec`, `to-stages`, `take-task` | an evening conversation |
+| **Plan a feature** | settle the behaviour and the open decisions; answer the preflight once | write the spec with checkable scenarios, decide how the system will do it where the shape changes, split it into stages and tasks, collect every decision the run will need into one list with recommendations and a time estimate | `to-spec`, `to-design`, `to-stages`, `take-task` | an evening conversation |
 | **The run** | nothing; you are away | build the whole feature on its own branch with parallel workers, tests first where agreed, independent review (by another model where one is available), fix every red check; stop only for a real fork (architecture, expensive mistakes, behaviour beyond the spec) and reach you with a ready decision | `take-task`, `diagnose-bug` | only if a fork comes up |
 | **Acceptance** | try it the way the pull request says; merging is your acceptance | a green pull request: what users can now do, how to check it yourself, every decision taken without you, what review found, what is not done | `take-task` | the time it takes to try it |
 | **Close** | nothing | update the current specs from the accepted work, close the tasks, remove branches and checkouts | `close-out` | none |
@@ -239,7 +239,7 @@ check is installed, so is a feature whose spec is not ready.
 
 ## Skills
 
-Sixteen skills. You can start any of them by command or just by asking in
+Eighteen skills. You can start any of them by command or just by asking in
 words; when the agent recommends one and you agree, it starts it itself. The
 first group starts only on your request or agreement; the agent starts the
 second group on its own when the work calls for it.
@@ -268,6 +268,7 @@ unrelated changes, new scope or publishing anything.
 | [to-research](skills/productivity/to-research/SKILL.md) | Answers a question from primary sources, with citations. | When a decision depends on facts nobody has checked. |
 | [to-prototype](skills/engineering/to-prototype/SKILL.md) | Builds a small throwaway experiment that answers one design question. | When arguing takes longer than trying. |
 | [to-spec](skills/engineering/to-spec/SKILL.md) | Writes down what exactly is being built, as the user will see it, with scenarios that will be checked. | Before building something whose behaviour is not yet agreed. |
+| [to-design](skills/engineering/to-design/SKILL.md) | Decides how the system will meet an outcome before it is built: the drivers and the shape that exists, at least two options from named patterns, a recorded decision with what was rejected and assumed, review by another model, and the scenarios that become checks. | When a change introduces or changes a building block, an interface, ownership of state, a runtime interaction, an external dependency or an interface surface. |
 | [to-stages](skills/backlog/to-stages/SKILL.md) | Splits a feature into stages, checkpoints that are each checked before the next builds on them, and tasks small enough for one agent. | When planning a feature before it runs. |
 | [diagnose-bug](skills/engineering/diagnose-bug/SKILL.md) | Finds the cause of a bug with evidence: reproduces it, tests hypotheses one at a time. | When a bug did not yield to a quick look. |
 | [model-domain](skills/engineering/model-domain/SKILL.md) | Keeps the glossary — domain terms and the names of the system's own parts — and records of hard-to-reverse decisions. | When words start meaning different things, when a part had to be explained instead of named, or when a decision needs its reason kept. |
@@ -435,7 +436,7 @@ installation tests.
 
 ### Pi
 
-Install the full package, including all sixteen skills and Jev's MCP server
+Install the full package, including all eighteen skills and Jev's MCP server
 (verified with `@earendil-works/pi-coding-agent` 1.0.0):
 
 ```bash
@@ -453,7 +454,7 @@ project scope and hosts without the native MCP registration API.
 
 ### Prime Agent
 
-Install all sixteen skills as a personal package, available in every project:
+Install all eighteen skills as a personal package, available in every project:
 
 ```bash
 prime-agent package install git:github.com/shady2k/skills
@@ -807,6 +808,25 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
 
 ## Changelog
 
+- **0.99.0** decides how the system will meet a plan before building it. A
+  new `to-design` skill, between the spec and the stages: it gathers the
+  scenarios the result is judged by, takes inventory of the building blocks
+  and patterns that already exist, compares at least two options against
+  them, records the choice with what was rejected and assumed, and has
+  another model review the design before code. Every scenario a machine
+  can judge becomes a check the stages carry. A new protocol reference
+  holds the life cycle of a piece of work: what must hold before each
+  next stage and which skill carries it — with release, operations and post-release validation
+  named as stages the set has no skill for yet. Tailoring is the rule: the
+  stages a piece of work passes are chosen by its scale, uncertainty, risk
+  and project, so a trivial change is still just the change and its check,
+  while the router now offers live work its next stage — design before
+  building where the shape changes, none for a small bug with the reason
+  said, release for merged work whose users have not received it yet. Work that
+  follows a reference is accepted by comparison: reference and result side
+  by side with every difference fixed or taken as a departure with its
+  reason, evidence that could show the failure it rules out, and the yes
+  asked after the owner's own look.
 - **0.98.1** counts the time spent shaping a product idea with
   `define-product` as planning in the statistics; it was showing as time of
   no known phase.

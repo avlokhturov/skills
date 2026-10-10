@@ -1,6 +1,6 @@
 {
   "name": "shady2k-skills",
-  "version": "0.98.1",
+  "version": "0.99.0",
   "description": "Plan a feature with your agent, then let it build the feature on its own up to one pull request, with checks, review and plain-language reports.",
   "author": {
     "name": "shady2k",
@@ -23,7 +23,7 @@
   "interface": {
     "displayName": "shady2k skills",
     "shortDescription": "From an idea to a merged pull request",
-    "longDescription": "Sixteen skills: plan a feature together, answer one batch of questions, and let the agent build it alone to one pull request that says what was built, how to try it and what it decided without you. Run setup once per project; a skill tells you when an update needs it again.",
+    "longDescription": "Eighteen skills: plan a feature together, answer one batch of questions, and let the agent build it alone to one pull request that says what was built, how to try it and what it decided without you. Run setup once per project; a skill tells you when an update needs it again.",
     "developerName": "shady2k",
     "category": "Productivity",
     "capabilities": [
