@@ -15,7 +15,9 @@ work needs a form the project has not recorded (the first screen needs a kit
 and tokens), the spec proposes it to the owner as a project-wide decision
 before the work invents one for itself; a form the work does not need yet
 stays a finding. So is what the product runs on: the environments a release
-passes through and the parity between them, where its settings and secrets
+passes through and the parity between them, its infrastructure defined in
+code and reproducible from the repository instead of made by hand in some
+console, where its settings and secrets
 live — outside the repository, with whatever runs the product — and the
 pipeline that builds, checks and releases it. These are project decisions
 taken once too, changed by a change that needs them to change; a release uses

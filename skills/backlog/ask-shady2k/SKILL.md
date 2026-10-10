@@ -172,6 +172,8 @@ the list.
 | no tracker or integration, or setup missing or outdated | `/setup-shady2k-skills` before managed work, saying what is missing; in a product's code repository the product repository is set up first; still give the picture |
 | the person's plugin is older than the repository's installation | update the plugin, not setup, which would roll the installation back |
 | checks cannot run | the specific repair through setup; land a stranded installation if that is the cause |
+| a product running for users is failing in use | `handle-incident` — restore first, then the cause, then the review; a fix waits for the cause |
+| the upkeep look has fallen due — its agreed cadence has passed, or none has ever run | `check-upkeep`: read what runs the product, file what aged |
 | no current slice but live work exists | `groom-backlog` to agree and clean the slice (setup does this on first install) |
 | no milestone, or no charter | `/to-milestone` |
 | work marked as taken but abandoned | return it to the queue, keeping implemented results |

@@ -835,7 +835,8 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
   design: what is logged, measured and alerted on comes from the quality
   scenarios the feature is built from, each alert with its runbook, and
   where the product has users, an alert is held to a service level — an
-  objective, its measure, and what is owed once the error budget is spent. decides how the system will meet a plan before building it. A
+  objective, its measure, and what is owed once the error budget is spent.
+- **0.99.0** decides how the system will meet a plan before building it. A
   new `to-design` skill, between the spec and the stages: it gathers the
   scenarios the result is judged by, takes inventory of the building blocks
   and patterns that already exist, compares at least two options against

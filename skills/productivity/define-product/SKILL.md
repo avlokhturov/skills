@@ -24,7 +24,10 @@ their words may be kept as the record the documents quote, and say where it
 will be kept. Without that agreement, talk and write nothing that quotes them.
 
 Where there is no idea yet, find it first by the steps of **Starting from
-nothing**, then come back here.
+nothing**, then come back here. Where the ask is only a released
+hypothesis's measure that has come due, start at step 5 and leave the
+rest: the opening, the consent and the readiness check belong to shaping
+an idea, and no measure needs them.
 
 ## 2. Walk the idea, one plain question at a time
 

@@ -55,22 +55,23 @@ or stays out.
 
 ## 3. Reversible first
 
-The release is where the work stops being safe to undo, so every step's
-reverse is decided before the step runs:
+The release is where the work stops being safe to undo, so the reverse of
+every step is decided before the step runs: what undoes it, who can run
+the undo, how long it takes. Deciding the rollback while the rollout is
+failing costs the incident its fastest move — `handle-incident`'s restore
+works on the reverses the release named. What the project's own pipeline
+does decides the shape of the steps: where it deploys as one step with its
+rollback, that is the release's one step; where it can widen a change by
+environment, the change goes out narrowest first and widens step by step
+(progressive delivery), each widening behind what the product can already
+call off in flight (its feature flags).
 
-- **Migrations and their reverse.** Data and schema changes go out in the
-  expand-and-contract shape: forward while the old shape is still read,
-  then move, then contract once nothing reads what was left. A migration
-  that cannot give its reverse — data moving one way, nothing able to read
-  it back — is a one-way step, put to the owner before it runs, with what
-  it would destroy and what the alternatives cost.
-- **Rollout by environment.** The change goes to the narrowest environment
-  first and widens step by step (progressive delivery), each widening
-  behind what the product can already call off in flight (its feature
-  flags). Before a step runs, its rollback is named: what undoes it, who
-  can run the undo, how long it takes. Deciding the rollback while the
-  rollout fails costs the incident its fastest move —
-  `handle-incident`'s restore works on the reverses the release named.
+- **Migrations and their reverse.** Data and schema changes carry what
+  reads them back, and take the shape that keeps the old read alive until
+  nothing reads what was left (expand-and-contract is the common one). A
+  migration that cannot give its reverse — data moving one way, nothing
+  able to read it back — is a one-way step, put to the owner before it
+  runs, with what it would destroy and what the alternatives cost.
 - **A check after each step.** Rolled out and not observed is not
   released: the measure the design's scenarios named —
   [design.md](references/design.md)'s **Scenarios become checks** — is

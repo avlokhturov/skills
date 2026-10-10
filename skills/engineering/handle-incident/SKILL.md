@@ -47,8 +47,9 @@ logs, what was changed back, a copy of what was rolled away — so the loop
 is built on what the service was really doing, not on what was remembered.
 An approved fix is tracked work, by
 [keeping.md](references/keeping.md)'s **Tracked work**; a fix that again
-changes what runs for users goes out the way any release does, reversible
-first and checked after, by `ship-release`'s rules.
+changes what runs for users goes out as a release does — its reverse named
+before it runs, a check after it — through `ship-release` where the project
+releases.
 
 ## 3. The review
 
