@@ -74,7 +74,7 @@ calls for them. Descriptions are model-facing with their triggers;
 `disable-model-invocation` is not used, and `policy.allow_implicit_invocation`
 in `agents/openai.yaml` stays `true` in step with it. When a skill recommends
 another and the user agrees, start it; do not send them to type it.
-The planning helpers (`to-spec`, `to-stages`, `to-prototype`, `to-research`) and
+The planning helpers (`to-spec`, `to-design`, `to-stages`, `to-prototype`, `to-research`) and
 `groom-backlog` are model-invoked so an authorized `take-task` or setup can
 compose them. That permits the workflow, not unrelated changes or new authority.
 Use the harness's available skill mechanism, not an assumed tool name. If a

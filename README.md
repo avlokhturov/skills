@@ -198,12 +198,15 @@ work up.
 | **The run** | nothing; you are away | build the whole feature on its own branch with parallel workers, tests first where agreed, independent review (by another model where one is available), fix every red check; stop only for a real fork (architecture, expensive mistakes, behaviour beyond the spec) and reach you with a ready decision | `take-task`, `diagnose-bug` | only if a fork comes up |
 | **Acceptance** | try it the way the pull request says; merging is your acceptance | a green pull request: what users can now do, how to check it yourself, every decision taken without you, what review found, what is not done | `take-task` | the time it takes to try it |
 | **Close** | nothing | update the current specs from the accepted work, close the tasks, remove branches and checkouts | `close-out` | none |
-| **Release** | nothing, unless a release step cannot be undone or its check fails | version, release notes in what users can do, migrations with their reverse, rollout by environment with the check after each step | `ship-release` | one yes, before anything one-way runs |
+| **Release** | nothing, unless a release step cannot be undone or its check fails | starts on your word: version, release notes in what users can do, migrations with their reverse, rollout by environment with the check after each step | `ship-release` | one yes, before anything one-way runs |
 
 Between those: `ask-shady2k` tells you where the project stands and what to do
 next whenever you come back; `handoff` keeps the thread when a session ends;
 `check-upkeep` reads what the product runs after what ages quietly, and
-`handle-incident` waits for the day the running product lets it down.
+`handle-incident` waits for the day the running product lets it down. After a
+release, the hypotheses whose beliefs it tested wait on their measures; when
+one comes due, `define-product` reads the measure against the threshold the
+hypothesis recorded, and the next `to-milestone` plans from the results.
 
 ### Start with `ask-shady2k`, almost every time
 
@@ -278,7 +281,7 @@ unrelated changes, new scope or publishing anything.
 | [diagnose-bug](skills/engineering/diagnose-bug/SKILL.md) | Finds the cause of a bug with evidence: reproduces it, tests hypotheses one at a time. | When a bug did not yield to a quick look. |
 | [model-domain](skills/engineering/model-domain/SKILL.md) | Keeps the glossary — domain terms and the names of the system's own parts — and records of hard-to-reverse decisions. | When words start meaning different things, when a part had to be explained instead of named, or when a decision needs its reason kept. |
 | [to-backlog](skills/backlog/to-backlog/SKILL.md) | Files new work, bugs and ideas in the right place, without pushing them to the front. | When something new turns up in the middle of other work. |
-| [close-out](skills/backlog/close-out/SKILL.md) | Updates the current specs from accepted work, then closes its tasks. | After you merge a feature's pull request. |
+| [close-out](skills/backlog/close-out/SKILL.md) | Records accepted work — merges the change into the current specs, then closes its tasks — and preserves pending work where a fresh session picks it up. | After you merge a feature's pull request, or when work is stopped or handed over. |
 | [groom-backlog](skills/backlog/groom-backlog/SKILL.md) | Cleans up the queue reversibly with you: what is current, what waits, what was abandoned. | When the tracker has become a dump, and during setup. |
 | [check-upkeep](skills/backlog/check-upkeep/SKILL.md) | Reads the project for what ages quietly — outdated dependencies and their breaking changes, known vulnerabilities in what it ships, expiring certificates and keys, deprecated platform features, checks failing or slowing — and files what it finds in the right lane. Finds nothing? It says so in one line. | When the project should have a look after what runs it, or on its scheduled upkeep pass. |
 
@@ -639,12 +642,18 @@ Discussion and read-only research may end without a decision, file or task.
 Scratch experiments do not become production work automatically.
 
 Setup establishes the tracker and a usable queue; a milestone charter sets the
-current scope. `take-task` then selects the route from size, risk and unknowns:
-a short behavioural delta for small work, or discussion, research/prototype,
-specification and decomposition where needed. TDD is a separate project choice.
+current scope. `take-task` then chooses the stages a piece of work passes, by
+the life cycle's tailoring: size, uncertainty and risk decide, and each skipped
+or narrowed stage says its reason. The shortest path is the default, so a
+trivial, understood change is the change plus its check, a small feature is a
+short spec and one stage, and uncertain work adds discussion, research or a
+prototype, then the spec; a design decision comes after the spec where the
+change changes the system's shape; then the stages. TDD is a separate project
+choice.
 
-A stage has its own observable result and fits one session **including
-acceptance**. Independent tasks, stages and features may execute in parallel.
+A stage finishes something observable with its own DONE WHEN and is accepted
+before the next stage builds on it; a task, not a stage, is sized for one
+session. Independent tasks, stages and features may execute in parallel.
 Dependencies name required results or conflicts, never list order or hierarchy.
 
 Workers run static checks and related tests, including affected neighbouring
@@ -659,6 +668,10 @@ review, preferably by another model. Corrections receive fresh verification.
 `close-out` synchronizes the accepted change into current capability specs and
 closes the tasks and stage only with evidence for the accepted revision. A
 handoff preserves implemented work, unfinished acceptance and pending publication.
+Past the merge, `ship-release` takes the change to its users — narrow to the
+merge where that is what reaching them means here — then operation and upkeep
+belong to `handle-incident` and `check-upkeep`, and validation after release is
+reading the measures the hypotheses waited on.
 
 Every commit belongs to existing leaf tasks, including documentation,
 research, prototypes and setup. The commit-message hook and CI enforce links;
