@@ -5,7 +5,7 @@
 **Plan a feature with your agent in the evening. Accept a green pull request in
 the morning.**
 
-Eighteen skills for working as a
+Twenty-one skills for working as a
 [product engineer](https://shady2k.ru/posts/product-engineer-role/) (in
 Russian): an engineer whose work ends not at the merge but at whether users
 solved their problem. You stop driving an agent step by step. You decide what
@@ -198,9 +198,12 @@ work up.
 | **The run** | nothing; you are away | build the whole feature on its own branch with parallel workers, tests first where agreed, independent review (by another model where one is available), fix every red check; stop only for a real fork (architecture, expensive mistakes, behaviour beyond the spec) and reach you with a ready decision | `take-task`, `diagnose-bug` | only if a fork comes up |
 | **Acceptance** | try it the way the pull request says; merging is your acceptance | a green pull request: what users can now do, how to check it yourself, every decision taken without you, what review found, what is not done | `take-task` | the time it takes to try it |
 | **Close** | nothing | update the current specs from the accepted work, close the tasks, remove branches and checkouts | `close-out` | none |
+| **Release** | nothing, unless a release step cannot be undone or its check fails | version, release notes in what users can do, migrations with their reverse, rollout by environment with the check after each step | `ship-release` | one yes, before anything one-way runs |
 
 Between those: `ask-shady2k` tells you where the project stands and what to do
-next whenever you come back; `handoff` keeps the thread when a session ends.
+next whenever you come back; `handoff` keeps the thread when a session ends;
+`check-upkeep` reads what the product runs after what ages quietly, and
+`handle-incident` waits for the day the running product lets it down.
 
 ### Start with `ask-shady2k`, almost every time
 
@@ -239,7 +242,7 @@ check is installed, so is a feature whose spec is not ready.
 
 ## Skills
 
-Eighteen skills. You can start any of them by command or just by asking in
+Twenty-one skills. You can start any of them by command or just by asking in
 words; when the agent recommends one and you agree, it starts it itself. The
 first group starts only on your request or agreement; the agent starts the
 second group on its own when the work calls for it.
@@ -254,6 +257,8 @@ In Claude Code the plugin prefixes them: `/shady2k-skills:ask-shady2k`.
 | [to-milestone](skills/backlog/to-milestone/SKILL.md) | Agrees what the next version delivers, what is left out and how many new bugs it can absorb. | When the current version is done, or a project has no agreed next step. |
 | [take-task](skills/engineering/take-task/SKILL.md) | Before you leave, gathers every decision a planned feature will need in one list; then builds the whole feature without you up to one pull request, deciding small gaps itself and stopping only for decisions that need you. | When a feature is planned and you want it built while you are away. |
 | [handoff](skills/productivity/handoff/SKILL.md) | Keeps the work's state in the tracker and leaves what only this conversation knows where a fresh session will look. | Before you stop, or when a session gets too long. |
+| [ship-release](skills/engineering/ship-release/SKILL.md) | Carries merged, accepted work to its users: version by the project's scheme, release notes in what users can do, migrations with their reverse, rollout by environment with a check after each step and the rollback named before any step runs. | When a feature's pull request is merged and the project's users get it later than the merge. |
+| [handle-incident](skills/engineering/handle-incident/SKILL.md) | Restores a product failing in use, then finds the cause through `diagnose-bug`, then holds a blameless review whose actions are filed as work. | When a product runs for users and they report it is down or broken. |
 | [report-to-shady2k](skills/productivity/report-to-shady2k/SKILL.md) | Sends a problem or idea about these skills to their author as a GitHub issue, anonymized and shown to you word for word first. | When a skill confused you, did something wrong, or is missing something. |
 
 ### Started when the work calls for it
@@ -275,6 +280,7 @@ unrelated changes, new scope or publishing anything.
 | [to-backlog](skills/backlog/to-backlog/SKILL.md) | Files new work, bugs and ideas in the right place, without pushing them to the front. | When something new turns up in the middle of other work. |
 | [close-out](skills/backlog/close-out/SKILL.md) | Updates the current specs from accepted work, then closes its tasks. | After you merge a feature's pull request. |
 | [groom-backlog](skills/backlog/groom-backlog/SKILL.md) | Cleans up the queue reversibly with you: what is current, what waits, what was abandoned. | When the tracker has become a dump, and during setup. |
+| [check-upkeep](skills/backlog/check-upkeep/SKILL.md) | Reads the project for what ages quietly — outdated dependencies and their breaking changes, known vulnerabilities in what it ships, expiring certificates and keys, deprecated platform features, checks failing or slowing — and files what it finds in the right lane. Finds nothing? It says so in one line. | When the project should have a look after what runs it, or on its scheduled upkeep pass. |
 
 ## Installation and updates
 
@@ -436,7 +442,7 @@ installation tests.
 
 ### Pi
 
-Install the full package, including all eighteen skills and Jev's MCP server
+Install the full package, including all twenty-one skills and Jev's MCP server
 (verified with `@earendil-works/pi-coding-agent` 1.0.0):
 
 ```bash
@@ -454,7 +460,7 @@ project scope and hosts without the native MCP registration API.
 
 ### Prime Agent
 
-Install all eighteen skills as a personal package, available in every project:
+Install all twenty-one skills as a personal package, available in every project:
 
 ```bash
 prime-agent package install git:github.com/shady2k/skills
@@ -808,7 +814,28 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
 
 ## Changelog
 
-- **0.99.0** decides how the system will meet a plan before building it. A
+- **0.100.0** carries the work the rest of the set ends at — the merge — to
+  the people who use the product. Release is a new `ship-release` skill,
+  started only when you ask: version by the project's scheme, release notes
+  gathered from the accepted work instead of the diff, migrations that name
+  their reverse before they run, rollout by environment, narrowest first,
+  with a check after every step and the rollback decided before any of it
+  goes out. What broke in running has a new `handle-incident` skill: restore
+  first, then the cause through `diagnose-bug`, then a blameless review whose
+  actions land as tracked work. `check-upkeep` is the recurring look after
+  what your product runs on — outdated dependencies and their breaking
+  changes, known vulnerabilities in what it ships, expiring certificates and
+  keys, deprecated platform features, checks gone red or slow — filed where
+  it belongs, and a project with nothing outdated hears that in one line. A
+  release also marks which product hypotheses now wait on their measure, and
+  `define-product` reads that measure when it comes due, records confirmed,
+  refuted or inconclusive against the threshold the hypothesis wrote, and
+  brings a refuted one to you as news; planning the next milestone with
+  `to-milestone` starts from the results. Observability is now part of the
+  design: what is logged, measured and alerted on comes from the quality
+  scenarios the feature is built from, each alert with its runbook, and
+  where the product has users, an alert is held to a service level — an
+  objective, its measure, and what is owed once the error budget is spent. decides how the system will meet a plan before building it. A
   new `to-design` skill, between the spec and the stages: it gathers the
   scenarios the result is judged by, takes inventory of the building blocks
   and patterns that already exist, compares at least two options against
