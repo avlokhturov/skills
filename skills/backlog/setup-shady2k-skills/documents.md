@@ -257,8 +257,9 @@ setting. It refuses a document out of its form, a placeholder, a reused id, an
 id or prototype folder that does not exist, a link to a kind a document does
 not grow from, a use case's extension naming no step, a written status, a
 product requirement that names code, and a quote not at the place it cites. A
-practice record under `docs/practices/` is checked for its own form the same
-way, though it is no product document. It resolves every id named anywhere under
+practice record is checked for its own form the same way, though it is no
+product document; its folder is a rule, not a default, so one standing
+anywhere else under `docs/` is refused. It resolves every id named anywhere under
 `docs/`, so a capability requirement serving a product requirement that is gone
 is refused too, and so is a practice id that no record holds. A quote from a
 source kept outside the repository is reported, not refused. A repository with

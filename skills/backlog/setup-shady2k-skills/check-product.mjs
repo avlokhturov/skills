@@ -64,6 +64,7 @@ const WHY = {
   'written-status': 'status is computed from the links and the checks: remove the Status: field',
   'system-part-in-requirement': 'a product requirement says what a user can observe and names no part of the system; how the system does it is a capability requirement that serves this one',
   'unverified-quote': 'the quote must stand, as written, at the lines or times the citation names in that source: correct the place or the quote',
+  'wrong-folder': 'a practice record stands under docs/practices/, one file per practice: that folder is what the agent doc and the retrospective look in',
   'outside-quote': 'the source is kept outside the repository, so this quote cannot be verified here',
 };
 const NOTES = new Set(['outside-quote']);
@@ -362,6 +363,11 @@ export function checkProduct(source) {
   for (const d of docs) {
     if (byId.has(d.id)) finding('duplicate-id', d.path, d.line, `${d.id} is also ${byId.get(d.id).path}`);
     else byId.set(d.id, d);
+    // A practice record has one folder, and it is the one the agent doc and
+    // the retrospective read: the product documents' folders are defaults,
+    // this one is a rule.
+    if (d.prefix === PRACTICE && !/^docs\/practices\/[^/]+\.md$/.test(d.path))
+      finding('wrong-folder', d.path, d.line, 'a practice record stands under docs/practices/, one file per practice');
   }
   if (!docs.length) return found.sort(order);
   const hasVision = source.files.includes('docs/vision.md');
