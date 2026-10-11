@@ -61,12 +61,12 @@ corrected as one batch, by [speaking.md](speaking.md)'s **An ask carries its
 own substance**, never question by question — for work already being specified
 or run. A raw idea's frame is not confirmed but discovered: `define-product`
 walks it out of the person one plain question at a time, and what that walk
-gathers is the frame every later piece of work searches for. A small bug or a trivial change
-carries a one-line frame, by **Tailoring is the rule**: its size is one line,
-not zero. What a frame holds is what later stages read: an outcome's success
-signal is the frame's, measured by [product.md](product.md)'s hypothesis form
-where one exists, and seen in use by [checks.md](checks.md)'s **Reached, not
-just built**.
+gathers is the frame every later piece of work searches for. A small bug or a
+trivial change carries a one-line frame, by **Tailoring is the rule**: its
+size is one line, not zero. What a frame holds is what later stages read: an
+outcome's success signal is the frame's, measured by [product.md](product.md)'s
+hypothesis form where one exists, and seen in use by
+[checks.md](checks.md)'s **Reached, not just built**.
 
 **The shortest path is the default.** A stage is added because the work's
 scale, uncertainty or risk calls for it, never because it exists. A
