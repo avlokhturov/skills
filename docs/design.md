@@ -810,3 +810,47 @@ text (`# FR-012 — title`) so a reader and a wiki see the same thing; status is
 computed from links, never written; a document is superseded, not edited into
 another. A quote names its lines or times in a kept source and is verified
 there, so a requirement can be followed up to the words a person said.
+
+## 22. Practices, and the retrospective over a series of features (0.101)
+
+The owner had one objection to the verdict 0.60 put in the tracker. `close-out`
+asked four questions after a feature closed — was the result taken as it was,
+was there a question the agent could have answered itself, was there a decision
+it should have asked about, was a correction needed — and he never once
+answered them. A single feature is the wrong moment to judge: the engineer does
+not yet know how the work turned out. The questions and the `verdict` record
+they produced are gone; the run's own record, the forecast against what was
+spent by phase, stays as the data a later reading uses. A project that already
+posted a verdict keeps it readable, because the record kind is still read:
+nothing writes it, and no record already in a tracker turns into a damaged one.
+
+What replaces it is the retrospective over a series of features, a skill of its
+own, `refine-practices`. It gathers signals without judging them — the record
+of each run, findings and their lanes, reopened items, review findings, the
+owner's corrections, loops repeated in transcripts — and reviews the project's
+active practices before proposing anything. A class of error needs occurrences
+in two different features, is told with its mechanism rather than as its cases,
+and keeps its cases as evidence. The strongest fix that can hold it wins: the
+cause removed, a check that catches the class, or a written practice. Its
+destination is a new document kind outside the product chain:
+`docs/practices/PRA-NNN-…`, with `Status: active|retired`, `Since` and
+`Evidence`, and the sections Class, Mechanism, Practice and How we will know;
+its template stands beside the product ones, and one reader,
+`check-product.mjs`, checks it — a second kind table, with a written status
+allowed only where a kind declares it, so the product documents still refuse
+one. Retiring is as available as adding: a practice whose cause is gone is
+retired in the same change that removed the cause, and a proposal that would
+put a project over its soft budget of practices carries a candidate to retire.
+Setup version 0.44.0: setup installs the new template and the changed check.
+
+The rule itself is the protocol's, not the skill's: `keeping.md` gains one rule,
+**a repeated failure is fixed as its class, not as its cases**, which
+reconciles the one-line lesson the agent doc already carried with the practice
+record instead of leaving two rules telling the same story at different scales.
+
+Two things were declined. A second check for the new kind, so that its form is
+enforced independently: the set has one reader for a Markdown document under
+`docs/`, and a second would be a second place for a document's form to drift.
+And the name `PR-` for the kind: an id travels through branch names, commit
+subjects and tracker titles, where it reads as "pull request"; `PRA-` names the
+kind and collides with nothing already there.
