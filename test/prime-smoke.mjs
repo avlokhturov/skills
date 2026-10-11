@@ -68,7 +68,8 @@ try {
   check(tui, 'Prime TUI');
   const output = readFileSync(log, 'utf8');
   assert.doesNotMatch(output, /Failed to load extension/);
-  assert.match(output, /Welcome to PRIME Agent|Log in with Prime Intellect/,
+  // 0.9.8 greets or asks to log in; 0.10.0 draws its header and prompt.
+  assert.match(output, /Welcome to PRIME Agent|Log in with Prime Intellect|prime agent\x1b\[0m/,
     'TUI did not reach its welcome screen');
   // Use the Prime release's own Python MCP client, not just the saved CLI config.
   const executable = bin.includes('/') ? bin : spawnSync('which', [bin], { env, encoding: 'utf8' }).stdout.trim();

@@ -114,11 +114,12 @@ not at the plugin checkout. Clear any inherited `CLAUDE_PROJECT_DIR`, or set
 it to that same target project. Use the host's documented MCP setup command;
 Pi package metadata alone does not connect Jev on such a fork.
 
-## Prime 0.9.8 compatibility
+## Prime Agent compatibility
 
-Prime 0.9.8 uses the same package format but has no `registerMcpServer` API.
-The extension leaves Jev unregistered without stopping Prime; all twenty-one
-skills load. Install the package for all your projects:
+Prime uses the same package format but cannot register Jev from a package
+extension: 0.9.8 has no `registerMcpServer` API, and the extension leaves Jev
+unregistered without stopping Prime; 0.10.0 does not run TypeScript package
+extensions at all. In both, all twenty-one skills load. Install the package for all your projects:
 
 ```bash
 prime-agent package install git:github.com/shady2k/skills
@@ -141,9 +142,9 @@ not forward
 settings unless `package install --local` is requested. Project MCP settings
 are ignored for execution, so Jev needs the personal `mcp add` even when the
 package is installed locally. Installing skills does not grant project consent,
-store credentials, call a model or automatically connect Jev in Prime 0.9.8.
+store credentials, call a model or automatically connect Jev in Prime.
 
-Prime 0.9.8 compatibility is tested with package install, RPC discovery of all
+Prime 0.9.8 and 0.10.0 compatibility is tested with package install, RPC discovery of all
 twenty-one skills, and ordinary TUI startup in an isolated home. Its native MCP
 client initialized the separately configured Jev server and listed its tool
 without a model call. Interactive Jev use still needs Prime login and the
@@ -183,6 +184,7 @@ It installs into disposable personal
 settings, configures Jev through Prime's native `mcp add`, checks all
 twenty-one skills through RPC, starts the actual TUI to catch extension startup errors,
 and initializes Jev through Prime's Python MCP client to list its tool.
+Pass `PRIME_BIN` to test a release other than the one on `PATH`.
 A clean unauthenticated TUI does not create a kernel in the temporary home,
 so the test uses only that explicitly supplied Python. It makes no model calls;
 without a login, TUI use of Jev remains untested.

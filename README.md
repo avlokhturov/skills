@@ -445,6 +445,8 @@ installation tests.
 
 ### Pi
 
+#### Install
+
 Install the full package, including all twenty-one skills and Jev's MCP server
 (verified with `@earendil-works/pi-coding-agent` 1.0.0):
 
@@ -452,37 +454,79 @@ Install the full package, including all twenty-one skills and Jev's MCP server
 pi install git:github.com/shady2k/skills
 ```
 
-Start Pi in your project, then run `/skill:setup-shady2k-skills`. Update with
-`pi update --extensions`, then restart the session. The default personal
-install covers all projects and worktrees. Node 22.19.0 or later must be on
-`PATH`. Jev still requires the project's consent and existing credential setup;
-installing the package does not grant either or call a model.
+The default personal install covers all projects and worktrees. Node 22.19.0 or
+later must be on `PATH`. Jev still requires the project's consent and existing
+credential setup; installing the package does not grant either or call a model.
+
+Start Pi in your project, then run setup in the chat. Set aside time for it:
+see [What setup takes](#what-setup-takes).
+
+```text
+/skill:setup-shady2k-skills
+```
+
+#### Update
+
+In your terminal:
+
+```bash
+pi update --extensions
+```
+
+Start a new session. If a skill then says the project's installation is out of
+date, run `/skill:setup-shady2k-skills` there; most updates need no setup.
 
 See [Pi installation details](docs/pi.md) for local checkouts, verification,
 project scope and hosts without the native MCP registration API.
 
 ### Prime Agent
 
-Install all twenty-one skills as a personal package, available in every project:
+#### Install
+
+Install all twenty-one skills as a personal package, available in every
+project (verified with Prime Agent 0.9.8 and 0.10.0):
 
 ```bash
 prime-agent package install git:github.com/shady2k/skills
 ```
 
-Start Prime Agent in your project and run `/skill:setup-shady2k-skills`.
-Prime 0.9.8 loads the skills but cannot register Jev from a package extension.
-If you want Jev too, connect it once through Prime's native MCP support:
+Prime loads the skills but cannot register Jev from a package extension. If you
+want Jev too, connect it once through Prime's native MCP support:
 
 ```bash
 prime-agent mcp add jev -- node "$HOME/.prime/agent/git/github.com/shady2k/skills/mcp/jev-server.mjs"
 ```
 
 Jev still needs the project's consent and its existing credential setup; package
-installation does neither. Update with `prime-agent package update`, then start a
-new session. See [Prime Agent compatibility](docs/pi.md#prime-098-compatibility)
+installation does neither.
+
+Start Prime Agent in your project, then run setup in the chat. Set aside time
+for it: see [What setup takes](#what-setup-takes).
+
+```text
+/skill:setup-shady2k-skills
+```
+
+#### Update
+
+In your terminal:
+
+```bash
+prime-agent package update
+```
+
+Start a new session. If a skill then says the project's installation is out of
+date, run `/skill:setup-shady2k-skills` there; most updates need no setup.
+
+Updating Prime Agent itself (`prime-agent update`) keeps the package. If the
+skills are missing afterwards, check that `prime-agent package list` shows
+`git:github.com/shady2k/skills`, and if it does not, run the install command
+again. See [Prime Agent compatibility](docs/pi.md#prime-agent-compatibility)
 for local checkouts, project scope and the limits of automatic Jev support.
 
 ### Other agents / standalone skills
+
+#### Install
 
 Use the universal installer if your agent reads `SKILL.md` files. This is also
 an alternative to the plugin for Claude Code and Codex, not an extra step.
@@ -494,18 +538,21 @@ npx skills@latest add shady2k/skills
 Select your agent and install the complete set, including the installer.
 Run `setup-shady2k-skills` in your agent's skill syntax: standalone Claude Code
 uses `/setup-shady2k-skills`; standalone Codex uses `$setup-shady2k-skills`.
+Individually installed folders remain self-contained, but a workflow that needs
+another skill must have that skill installed too. When switching installation
+methods, inspect and remove only the previous installation of this set;
+preserve any locally edited skill files.
 
-To update:
+#### Update
+
+In your terminal:
 
 ```bash
 npx skills update
 ```
 
-Run setup again only when a skill says the installation is out of date.
-Individually installed folders remain self-contained, but a
-workflow that needs another skill must have that skill installed too.
-When switching installation methods, inspect and remove only the previous
-installation of this set; preserve any locally edited skill files.
+Start a new session. Run setup again only when a skill says the installation
+is out of date.
 
 ### Joining a repository that already uses the set
 
