@@ -4,7 +4,7 @@
 // is): a session's claim of an item, with the forecast and the promised time;
 // the receipt that ends it, with what the session spent, measured from its
 // transcript; the stops, lone decisions and CI runs inside it; a feature's
-// summary when it closes; the owner's verdict; how a resumed session picked
+// summary when it closes; how a resumed session picked
 // the work up; the voids that retire a damaged or wrong record, since a
 // tracker may only append. Beside these time records, `exec` keeps in a journal
 // of its own (also comments on the items, nowhere else) the durations of the
@@ -26,7 +26,7 @@ import {
   projectName, recordedShapes, sessionEnvVars, span, transcriptOf, union, unnamedTranscripts,
 } from './ledger.mjs';
 import {
-  ACCEPTED, BUCKETS, ENDS, EVENTS, GRADES, PHASES, REASONS, RESULTS, ROLES, WORK,
+  BUCKETS, ENDS, EVENTS, GRADES, PHASES, REASONS, RESULTS, ROLES, WORK,
   formatRecord, newSpanId, parseRecord, recordsOf, roundTable, spansOf,
 } from './time-format.mjs';
 
@@ -461,30 +461,22 @@ function describeStalled(rows) {
 
 function report(v) {
   const runs = finishedRuns(v);
-  const verdicts = new Map(v.verdicts.map((r) => [r.item, r.fields]));
-  const judged = [...verdicts.values()];
-  const n = (x) => Number(x || 0);
-  const sum = (f) => judged.reduce((a, x) => a + n(f(x)), 0);
   const events = v.spans.flatMap((s) => s.events);
   const stops = events.filter((e) => e.fields.event === 'stop');
-  const accepted = judged.filter((x) => x.accepted !== 'abandoned');
   const measured = runs.filter((r) => r.occupied !== null);
   const complete = measured.filter((r) => !r.partial);
   const attention = runs.reduce((a, r) => a + (r.table.total?.answer || 0), 0);
   const running = new Set(v.spans.filter((s) => s.claim?.fields.role === 'coordinator').map((s) => s.item));
   for (const r of runs) running.delete(r.item);
+  // How the runs went, from the records alone: what a session claimed, the
+  // stops it took, what the summary ended with and what a later session
+  // recovered. What the owner thought of the result is neither asked for nor
+  // counted: the retrospective reads the run's own record instead.
   return {
-    runs: runs.length + running.size, finished: runs.length, judged: judged.length,
-    unjudged: runs.filter((r) => !verdicts.has(r.item)).length,
-    acceptedAsIs: judged.filter((x) => x.accepted === 'as-is').length,
-    acceptedAfterChanges: judged.filter((x) => x.accepted === 'after-changes').length,
-    abandoned: judged.filter((x) => x.accepted === 'abandoned').length,
-    autonomous: accepted.filter((x) => !n(x.corrections) && !n(x.rescues)).length,
+    runs: runs.length + running.size, finished: runs.length,
     stops: { owner: stops.filter((e) => e.fields.reason === 'owner').length, missing: stops.filter((e) => e.fields.reason === 'missing').length },
     decisions: events.filter((e) => e.fields.event === 'decision').length,
     ci: events.filter((e) => e.fields.event === 'ci').length,
-    avoidableQuestions: sum((x) => x.avoidable), missedEscalations: sum((x) => x.missed),
-    corrections: sum((x) => x.corrections), rescues: sum((x) => x.rescues),
     recoveries: Object.fromEntries(GRADES.map((g) => [g, v.recoveries.filter((r) => r.fields.grade === g).length])),
     open: running.size,
     pastForecast: stalled(v).filter((r) => r.pastForecast).length,
@@ -493,7 +485,6 @@ function report(v) {
       runsMeasured: measured.length,
       partial: measured.filter((r) => r.partial).length,
       attentionMinutes: attention,
-      acceptedPerAttentionHour: accepted.length && attention ? +(accepted.length / (attention / 60)).toFixed(2) : null,
       medianOccupiedMinutes: complete.length ? round(quantile(complete.map((r) => r.occupied), 0.5)) : null,
       medianWorkMinutes: runs.length ? round(quantile(runs.map((r) => r.table.total?.work || 0), 0.5)) : null,
     },
@@ -507,18 +498,14 @@ function report(v) {
 
 function describeReport(r) {
   const lines = [
-    `Runs ${r.runs}, finished ${r.finished}, judged by the owner ${r.judged}`,
-    `Accepted as is ${r.acceptedAsIs}, after changes ${r.acceptedAfterChanges}, abandoned ${r.abandoned}` +
-      (r.unjudged ? `; ${r.unjudged} finished run(s) the owner never judged, so acceptance is unmeasured` : ''),
-    `Delivered without corrections or rescue ${r.autonomous} of ${r.judged - r.abandoned} accepted`,
+    `Runs ${r.runs}, finished ${r.finished}`,
     `Stops: for the owner ${r.stops.owner}, missing information ${r.stops.missing}; decisions taken alone ${r.decisions}; CI runs ${r.ci}`,
-    `Avoidable questions ${r.avoidableQuestions}, missed escalations ${r.missedEscalations}, corrections ${r.corrections}, rescues ${r.rescues}`,
     `Recoveries ${GRADES.map((g) => `${g} ${r.recoveries[g]}`).join(', ')}`,
     `Open runs ${r.open}, of them past their promised time ${r.pastForecast}`,
     describePace(r.pace),
     r.spend.runsMeasured
       ? `Measured over ${r.spend.runsMeasured} finished run(s)${r.spend.partial ? ` (${r.spend.partial} of them incomplete, left out of the median: not all their occupied time could be measured -- a span still open, a transcript on another machine, or a harness this copy cannot read)` : ''}: ` +
-        `the owner ${r.spend.attentionMinutes} min answering${r.spend.acceptedPerAttentionHour ? `, ${r.spend.acceptedPerAttentionHour} feature(s) accepted per hour of it` : ''}; ` +
+        `the owner ${r.spend.attentionMinutes} min answering; ` +
         `a run occupies ${r.spend.medianOccupiedMinutes} min (median), ${r.spend.medianWorkMinutes} min of work summed over its sessions`
       : 'No finished run has a measured summary yet.',
   ];
@@ -1117,15 +1104,6 @@ export function run(argv) {
       out.push(summaryFor(b, feature, opts, { result, pr: opts.pr, note: opts.note, extra: out }));
       return post(out, opts);
     }
-    case 'verdict': {
-      const b = v();
-      const it = item(b, opts.item);
-      const fields = {
-        at: iso(nowMs()), accepted: need(opts, 'accepted', ACCEPTED), avoidable: count(opts, 'avoidable') ?? '0',
-        missed: count(opts, 'missed') ?? '0', corrections: count(opts, 'corrections') ?? '0', rescues: count(opts, 'rescues') ?? '0', note: opts.note,
-      };
-      return post([{ item: it.id, body: formatRecord('verdict', fields) }], opts);
-    }
     case 'recovery': {
       const b = v();
       const it = item(b, opts.item);
@@ -1173,9 +1151,8 @@ export function run(argv) {
       const items = [...new Set(b.spans.filter((s) => s.claim?.fields.role === 'coordinator').map((s) => s.item))];
       const rows = items.map((id) => ({
         item: id, title: b.by.get(id)?.title || '', result: b.summaries.find((s) => s.item === id)?.fields.result || 'running',
-        verdict: b.verdicts.find((s) => s.item === id)?.fields.accepted || null,
       }));
-      return print(rows, rows.map((r) => `${r.item}  ${r.result}${r.verdict ? `, ${r.verdict}` : ''}  ${r.title}`).join('\n') || 'no runs');
+      return print(rows, rows.map((r) => `${r.item}  ${r.result}  ${r.title}`).join('\n') || 'no runs');
     }
     case 'progress': {
       if (opts.item) {
@@ -1378,22 +1355,15 @@ function deliveryReport(v, opts) {
   const startedOf = (it) => v.spans.filter((s) => s.item === it && s.claim).map((s) => s.start).filter((n) => Number.isFinite(n)).sort((a, b) => a - b)[0];
   const lead = runs.filter((r) => Number.isFinite(startedOf(r.item)))
     .map((r) => round((Date.parse(at(r.item)) - startedOf(r.item)) / 60e3));
-  const verdict = (it) => v.verdicts.find((s) => s.item === it)?.fields;
-  const judged = runs.filter((r) => verdict(r.item));
-  const failed = judged.filter((r) => verdict(r.item).accepted !== 'as-is' || Number(verdict(r.item).corrections) > 0);
   return {
     period: { since: Number.isFinite(since) ? localStamp(since) : null, until: Number.isFinite(until) ? localStamp(until) : null },
     leadTime: {
       medianMinutes: lead.length ? round(quantile(lead, 0.5)) : null, runs: lead.length,
       basis: 'the claim a run started with, to the summary that ended it, on features whose records carry both times',
     },
-    changeFailureRate: {
-      percent: judged.length ? pct(100 * (failed.length / judged.length)) : null, judged: judged.length,
-      count: failed.length, items: failed.map((r) => r.item),
-      basis: 'a change failed where its verdict asked for changes, or corrections were recorded, or its run was abandoned',
-    },
+    changeFailureRate: { computed: false, why: 'the records hold claims, results and summaries, never a judgement of whether a change failed: the set does not ask the owner to judge a run, so nothing here says one did' },
     deploymentFrequency: { computed: false, why: 'the set records the claims and results of runs, never what was deployed where and when; deployments live with whatever ships the product' },
-    timeToRestore: { computed: false, why: 'nothing this set records says that a change failed where users are, or when its fix reached them: a verdict, a stop event and a merge are not uptime' },
+    timeToRestore: { computed: false, why: 'nothing this set records says that a change failed where users are, or when its fix reached them: a stop event and a merge are not uptime' },
   };
 }
 
@@ -1401,7 +1371,7 @@ function describeDelivery(d) {
   const row = (name, value) => `${name}: ${value}`;
   return [
     row('Lead time for changes', d.leadTime.runs ? `median ${h(d.leadTime.medianMinutes)} over ${d.leadTime.runs} finished run(s) -- ${d.leadTime.basis}` : 'no finished run in the period carries both its start and its end'),
-    row('Change failure rate', d.changeFailureRate.judged ? `${d.changeFailureRate.percent}% (${d.changeFailureRate.count} of ${d.changeFailureRate.judged}; ${d.changeFailureRate.basis})` : 'no judged run in the period'),
+    row('Change failure rate', `not computed -- ${d.changeFailureRate.why}`),
     row('Deployment frequency', `not computed -- ${d.deploymentFrequency.why}`),
     row('Time to restore', `not computed -- ${d.timeToRestore.why}`),
   ].join('\n');
@@ -1433,7 +1403,6 @@ runs.mjs exec --item <id> --backlog <path | -> [--first <minutes>] -- <command a
   and the next run of the same command reads its bound from it.
 runs.mjs finish --item <feature> --result pull-request|abandoned|stopped [--pr <url>] [--note <text>]
   this session's receipt, then the feature's summary: forecast against work by phase, occupied time
-runs.mjs verdict --item <feature> --accepted as-is|after-changes|abandoned [--avoidable N] [--missed N] [--corrections N] [--rescues N] [--note <text>]
 runs.mjs recovery --item <id> --grade R0|R1|R2|R3 [--from <harness>] [--to <harness>] [--note <text>]
 runs.mjs void --comment <id> --note <why>
   retires a damaged or wrong record, which a tracker cannot delete; a correction then writes the right one
@@ -1584,11 +1553,11 @@ async function selftest() {
     expect('finish: forecast against work by phase', sum.table.rows.total.forecast === 120 && sum.table.rows.total.work === 160);
     expect('finish: the summary counts every span of the feature', sum.fields.spans === '3' && sum.fields.open === '0');
 
-    act('verdict', '--item', 'F', '--accepted', 'after-changes', '--corrections', '1');
     act('recovery', '--item', 'F', '--grade', 'R3');
     const r = JSON.parse(cli('report', '--json'));
-    expect('report: verdicts, stops and recoveries from the records', r.finished === 1 && r.acceptedAfterChanges === 1 && r.corrections === 1
-      && r.stops.owner === 1 && r.recoveries.R3 === 1 && r.spend.medianOccupiedMinutes === 100);
+    expect('report: stops and recoveries from the records, with no judgement of a run in them', r.finished === 1
+      && r.stops.owner === 1 && r.recoveries.R3 === 1 && r.spend.medianOccupiedMinutes === 100
+      && !('judged' in r) && !('acceptedAsIs' in r) && !('corrections' in r) && !('avoidableQuestions' in r));
     expect('pace: too little history says so', !JSON.parse(cli('pace', '--json')).enough);
 
     // Time over a period: every receipt ended in it, once; the open span on X
@@ -1964,7 +1933,6 @@ async function selftest() {
     expect('misuse: a claim of an item not in the backlog', misuse(['claim', '--item', 'nope', '--role', 'worker', '--backlog', file, ...as('z')]));
     expect('misuse: a forecast phase that is not one', misuse(['claim', '--item', 'A', '--role', 'worker', '--forecast', 'coding=5', '--backlog', file, ...as('z')]));
     expect('misuse: a stop without its reason', misuse(['event', '--span', claim.fields.span, '--event', 'stop', '--backlog', file]));
-    expect('misuse: a verdict that is not one', misuse(['verdict', '--item', 'F', '--accepted', 'maybe', '--backlog', file]));
     expect('misuse: an unknown command', misuse(['frobnicate', '--backlog', file]));
     expect('misuse: no session given or found', misuse(['claim', '--item', 'A', '--role', 'worker', '--backlog', file]));
 
@@ -2005,9 +1973,9 @@ async function selftest() {
       /by what filled the turns/.test(prog) && /%/.test(prog));
     expect('progress: misuse without a scope', misuse(['progress', '--backlog', file]));
     const del = cli('progress', '--period', '2026-01-01');
-    expect('progress: the delivery metrics say plainly which two the records cannot name',
+    expect('progress: the delivery metrics say plainly which ones the records cannot name',
       /Deployment frequency: not computed/.test(del) && /Time to restore: not computed/.test(del)
-      && /Change failure rate/.test(del));
+      && /Change failure rate: not computed/.test(del));
     // One line to the owner, through the channel the person keeps per machine,
     // under their config folder and never inside the working copy.
     const noteFile = join(home, '.config', 'shady2k-skills', 'notify.json');

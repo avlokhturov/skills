@@ -199,7 +199,7 @@ Expected: do not claim acceptance; obtain verified receipts and the authorized
 policy through the wrapper. State the trust limitation if this environment cannot
 enforce it. A successful normalized-input validator is not proof of authenticity.
 
-## 15. Estimates from measured pace, the verdict from the owner
+## 15. Estimates from measured pace, the retrospective from the record
 
 Skills: take-task, close-out, ask-shady2k.
 
@@ -209,9 +209,9 @@ and made four decisions alone. A memory tool recalls an older decision that
 the decision log has since replaced.
 
 Expected: preflight quotes the measured range and corrects its estimate by the
-measured error instead of guessing. On close, the owner is asked once, in plain
-words, how the run went, and the answer is recorded as they gave it; the agent
-never fills the verdict in itself, and a skipped question is not asked again.
+measured error instead of guessing. On close, the run's own record is read and
+the owner is asked nothing about how it went: the largest overruns against the
+forecast by phase are filed as findings, each with its cause and no culprit.
 Lasting traps are proposed for the agent doc, one line each. The recalled
 decision is checked against the decision log, which wins.
 

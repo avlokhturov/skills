@@ -766,8 +766,10 @@ machine and session reads the same. When a session takes an item, it posts a
 claim; when it stops, a receipt with what it spent, by phase and by who spent
 it. A feature run adds its forecast by phase at the start and a summary at the
 end: the forecast against the work, and how long the work occupied, parallel
-sessions counted once. After the feature closes, `close-out` asks you four
-short questions about how the run went. A session whose transcript is on
+sessions counted once. After the feature closes, `close-out` takes the run's
+retrospective from that record — the largest overruns against the forecast by
+phase become findings — and asks you nothing about how the run went. A session
+whose transcript is on
 another machine makes the figure "at least this, incomplete"; one no machine
 has stays unknown, with the reason. The records carry numbers, the agent's
 name and a one-line note, not the conversation.

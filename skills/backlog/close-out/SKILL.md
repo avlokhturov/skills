@@ -95,39 +95,31 @@ yes, by the protocol's [**Its answer is taken only where it is
 sure**](references/judging.md); the ones it is unsure of are named, and you
 read those yourself. Without it the transcript naming the item decides alone.
 
-## 4. Ask how the run went, and keep its lessons
+## 4. Read the run's record, and keep its lessons
 
 When a feature closes whose run was recorded (a coordinator's claim on it;
 `list` shows them), close the run with `finish --item <feature> --result
-<result>` if the run itself did not, and
-ask the owner once, in one message, in plain words:
+<result>` if the run itself did not. A run that left no summary and passed the
+time its result was promised for (`stalled`) is one that stopped: close it with
+`finish --item <feature> --result stopped` and say so, rather than leaving it
+counted as running.
 
-- did they take the result as it was, after changes of their own, or not at all;
-- was there a question the agent could have answered itself from the project;
-- was there a decision the agent took alone that it should have asked about;
-- did they have to correct the agent, or finish the work for it.
-
-A run that left no summary and passed the time its result was promised for
-(`stalled`) is one that stopped: close it with `finish --item <feature>
---result stopped` and
-say so, rather than leaving it counted as running.
-
-Record the answer with `verdict`, as counts and a short note, posted on the
-feature. Only the owner can judge these; never fill them in yourself. If they
-skip it, record nothing and do not ask again for this feature.
-
-Alongside the owner's questions, the feature's retrospective is taken from the
-run's own record, and it is a blameless retrospective — named so because
-nothing in it is assigned. By the protocol's [**How the work went is kept on
-the item**](protocol.md), the summary holds the forecast against the work by
-phase: read off it the three largest overruns against the forecast by phase,
-each with its cause as the record holds it — the cause and not the culprit,
-by the protocol's [**Whoever started a run answers for it to the
+The feature's retrospective is taken from the run's own record, and it is a
+blameless retrospective — named so because nothing in it is assigned. By the
+protocol's [**How the work went is kept on the item**](protocol.md), the
+summary holds the forecast against the work by phase: read off it the three
+largest overruns against the forecast by phase, each with its cause as the
+record holds it — the cause and not the culprit, by the protocol's
+[**Whoever started a run answers for it to the
 owner**](references/running.md) — and file each as a finding through the
 integration's finding route, the same lane a bug is filed in. A stage that ran
-under forecast is said too, when its cause is a practice worth keeping. The
-retrospective needs nobody's verdict; only the record and this session read
-it — the owner reads what was filed, in the report of section 5.
+under forecast is said too, when its cause is a practice worth keeping.
+
+The owner is asked nothing about how the run went: they judge the result by
+using it, and what the run cost is already on the item. The overruns filed here
+and the rest of the run's record are what a retrospective over a series of
+features reads; the owner reads them in the report of section 5, as the
+findings they are.
 
 Then look through its handoff notes, run notes and review findings for traps
 that would cost time again, by the protocol's [**A lesson that outlives the work

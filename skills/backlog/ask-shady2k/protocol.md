@@ -160,7 +160,7 @@ append, so a record is never edited or deleted either: one that is damaged,
 wrong or not to count is voided by the script's `void`, naming its comment,
 and a correction then writes the right record with the script. Stops,
 decisions taken alone and CI runs are records inside the span; a feature's
-close is its summary, the owner's judgement his verdict. A span that ended with
+close is its summary. A span that ended with
 no receipt is found by the gate and written from the transcript where it is;
 where no machine has it, its time is unknown, said so, and never zero. A figure
 of time counts the receipts; what is still open is said beside it, as

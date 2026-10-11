@@ -122,9 +122,10 @@ with the evidence for each.
   it is from the vision.
 - **Progress:** the milestone's outcomes as accepted, in work, not started or
   stalled; what recent work changed for users; the pace, where history shows it.
-  Where runs were recorded, how they went in the owner's terms: how many were
-  taken as they were, how often the owner had to step in, and how much of
-  their time a feature cost.
+  Where runs were recorded, how they went as the records hold it: how many
+  stalled and had to be closed, how many stopped for the owner or for missing
+  information, what the work took against its forecast, and how much of the
+  owner's time a feature cost.
 - **Now:** work in progress, what waits for merging or acceptance, decisions
   filed for the owner and waiting on them (each by title, with the agent's
   recommendation), abandoned
@@ -273,15 +274,14 @@ whose transcripts nobody has written up, makes the figure "at least", said so.
   restore), each said as words, from what the run script computes for the
   period. Lead time for changes is there: from a feature's claim that started
   the run to the summary that ended it, on finished runs for which the records
-  carry both times. Change failure rate is said from what the records apply:
-  a change failed where the owner's verdict asked for changes or recorded
-  corrections, over the runs the owner judged. Two of the four are beyond
-  what this set records, and that is said plainly: the records hold claims
-  and results, never what was deployed where and when (deployment frequency),
-  and no record says that a change failed where users are or when its fix
-  reached them (time to restore) — what replaces them is said instead, how
-  often work reached the main line, and what the record names as needing
-  changes. Never call the substitutes the metrics they stand in for.
+  carry both times. Three of the four are beyond what this set records, and
+  that is said plainly: the records hold claims and results, never what was
+  deployed where and when (deployment frequency); nothing judges whether a
+  change failed, since the owner is no longer asked to judge a run (change
+  failure rate); and no record says that a change failed where users are or
+  when its fix reached them (time to restore) — what replaces them is said
+  instead, how often work reached the main line, and what the record names as
+  needing changes. Never call the substitutes the metrics they stand in for.
 
 The team's own units, such as story points, stay the team's: do not produce or
 convert them. The report is text for the owner; writing it into any other
