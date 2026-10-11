@@ -1,6 +1,6 @@
 # The backlog protocol
 
-Setup version: 0.43.0
+Setup version: 0.44.0
 
 These rules are the same in every project and ship with every skill that uses
 them, so they update with the set. If a project's own document restates them,
@@ -23,8 +23,8 @@ file, read when a step needs it:
   one surface per capability, replaceable boundaries, screens from components
   and tokens, tests that survive a refactoring;
 - [keeping.md](references/keeping.md): what is tracked, what a session must
-  not keep only to itself, exploration versus commitment, and lessons that
-  outlive the work;
+  not keep only to itself, exploration versus commitment, the lessons that
+  outlive the work, and the practice records that answer a class of error;
 - [starting.md](references/starting.md): a project from an empty folder, with
   not even an idea, to its first planned feature;
 - [lifecycle.md](references/lifecycle.md): the life cycle of a piece of work —

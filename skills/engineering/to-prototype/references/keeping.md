@@ -42,3 +42,23 @@ they land with the user's agreement in a change that tracked work carries, or
 are left for the next session to land. A harness's own memory may keep them
 too, but the agent doc is what every agent reads. A lesson whose cause is
 removed goes in the same change that removes it.
+
+**A repeated failure is fixed as its class, not as its cases.** One trap met
+once is a lesson in the agent doc, as **A lesson that outlives the work is kept
+where every agent reads** says. The same class of error met in two different
+features is a fault of how we work, and it is answered at the strongest point
+that can hold it: the cause removed (a backlog item), else a check that catches
+the class, else a written practice. A practice is a record of its own, one file
+per practice under `docs/practices/`, with its template (`templates/practice.md`)
+and its check (`check-product.mjs`): `# PRA-NNN — <title>`, then `Status:` active
+or retired, `Since`, and `Evidence` — where the class was seen — then the
+sections Class, Mechanism (why the action looked reasonable to the agent that
+took it), Practice, and How we will know. A practice is never written as its
+cases: the cases are evidence, and the class is what a reader can act on. A
+retired practice keeps its record, says it in its `Status`, and gives the reason
+in its own Practice section, so the next practice is written against it. A
+practice whose cause is removed is retired in the same change that removed it,
+as a lesson is. What belongs to this set itself is reported to its author, never
+written into a project's practices; the agent doc carries one line per active
+practice beside the practices folder, so an agent meets the practice where it
+already reads.

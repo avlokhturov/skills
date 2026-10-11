@@ -13,6 +13,9 @@ Tracked work, proportional design and acceptance of an assembled stage.
 - [handle-incident](./handle-incident/SKILL.md): restore a failing product
   first, then find the cause, then a blameless review whose actions are filed
   as work.
+- [refine-practices](./refine-practices/SKILL.md): a retrospective over the
+  work since the last one — the classes of error that came back, and the
+  practices to add or retire, put to the owner as one batch.
 
 ## Started when the work calls for it
 

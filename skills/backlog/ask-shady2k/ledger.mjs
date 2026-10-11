@@ -506,6 +506,7 @@ export const PHASES = {
   'take-task': 'build',
   'diagnose-bug': 'debug',
   'close-out': 'wrap',
+  'refine-practices': 'wrap',
   handoff: 'wrap',
   'report-to-shady2k': 'wrap',
   'setup-shady2k-skills': 'setup',

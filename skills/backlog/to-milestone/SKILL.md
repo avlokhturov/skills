@@ -32,7 +32,12 @@ Read `currentMilestone` from the gate config.
   A charter over an undeclared slice leaves unrelated work live and the gate red.
 - **Set, no charter file:** the running milestone, declared by setup or
   grooming. Nothing ends: skip carryover and defer nothing.
-- **Otherwise:** the next milestone; the current one is ending.
+- **Otherwise:** the next milestone; the current one is ending. Offer
+  `refine-practices` first, by the protocol's [**A repeated failure is fixed as
+  its class, not as its cases**](references/keeping.md): a look back over the
+  work since the last retrospective, whose practices land before the next
+  charter is planned. Start it if the owner agrees, and plan after it; if they
+  decline, that is said once and the charter is proposed.
 
 ## 1. Read before asking
 

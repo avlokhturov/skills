@@ -1,0 +1,5 @@
+interface:
+  display_name: "Refine Practices"
+  short_description: "Retrospective over the work since the last one"
+policy:
+  allow_implicit_invocation: true

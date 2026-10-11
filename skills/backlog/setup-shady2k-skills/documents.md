@@ -52,6 +52,7 @@ docs/requirements/FR-NNN-<slug>.md
 docs/questions/Q-NNN-<slug>.md
 docs/prototypes/P-NNN-<slug>.md     # its code in prototypes/<folder>/
 docs/results/R-NNN-<slug>.md
+docs/practices/PRA-NNN-<slug>.md    # a practice record, checked beside them: the protocol's keeping.md
 ```
 
 In a product repository these places are the layout's and none is asked: the
@@ -132,7 +133,11 @@ The product's own documents (sources, hypotheses, user stories, use cases,
 product requirements, open questions, prototypes and results) have templates in
 `templates/product/`, one per kind. Unlike the others, their form is not the
 project's: it is fixed by the protocol's product documents, and
-`check-product.mjs` refuses a document out of it.
+`check-product.mjs` refuses a document out of it. A practice record is not a
+product document and takes no part in the chain; its template is
+`templates/practice.md`, its form is the protocol's **A repeated failure is
+fixed as its class, not as its cases**, and `check-product.mjs` checks it beside
+them, so one reader holds both.
 Replace placeholders; do not publish empty scaffolds. Existing equivalent
 documents take precedence over creating duplicates. A small change may live in
 its task body, provided the deterministic export includes it and the accepted
@@ -251,11 +256,13 @@ on every pull request, against its merge base, whoever opened it.
 setting. It refuses a document out of its form, a placeholder, a reused id, an
 id or prototype folder that does not exist, a link to a kind a document does
 not grow from, a use case's extension naming no step, a written status, a
-product requirement that names code, and a quote not at the place it cites. It
-resolves every id named anywhere under `docs/`, so a capability requirement
-serving a product requirement that is gone is refused too. A quote from a
+product requirement that names code, and a quote not at the place it cites. A
+practice record under `docs/practices/` is checked for its own form the same
+way, though it is no product document. It resolves every id named anywhere under
+`docs/`, so a capability requirement serving a product requirement that is gone
+is refused too, and so is a practice id that no record holds. A quote from a
 source kept outside the repository is reported, not refused. A repository with
-no product document passes untouched.
+no product document and no practice passes untouched.
 
 ```sh
 node check-product.mjs --selftest

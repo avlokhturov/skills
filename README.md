@@ -5,7 +5,7 @@
 **Plan a feature with your agent in the evening. Accept a green pull request in
 the morning.**
 
-Twenty-one skills for working as a
+Twenty-two skills for working as a
 [product engineer](https://shady2k.ru/posts/product-engineer-role/) (in
 Russian): an engineer whose work ends not at the merge but at whether users
 solved their problem. You stop driving an agent step by step. You decide what
@@ -245,7 +245,7 @@ check is installed, so is a feature whose spec is not ready.
 
 ## Skills
 
-Twenty-one skills. You can start any of them by command or just by asking in
+Twenty-two skills. You can start any of them by command or just by asking in
 words; when the agent recommends one and you agree, it starts it itself. The
 first group starts only on your request or agreement; the agent starts the
 second group on its own when the work calls for it.
@@ -258,6 +258,7 @@ In Claude Code the plugin prefixes them: `/shady2k-skills:ask-shady2k`.
 | [ask-shady2k](skills/backlog/ask-shady2k/SKILL.md) | Reads the project and tells you where it stands, how far it has come, what is stuck and which ways forward exist, with one recommendation; or, for the team's daily sync, what was done over a period, what got in the way, the questions for others and whether the work fits by a date. Changes nothing. | At the start of a session, after a break, in an unfamiliar project, whenever you are unsure what comes next, before a standup. |
 | [setup-shady2k-skills](skills/backlog/setup-shady2k-skills/SKILL.md) | Connects the project's tracker, cleans its queue with you, proposes settings as one profile and proves the checks work. | Once per project, and again when a skill says the installation is out of date. |
 | [to-milestone](skills/backlog/to-milestone/SKILL.md) | Agrees what the next version delivers, what is left out and how many new bugs it can absorb. | When the current version is done, or a project has no agreed next step. |
+| [refine-practices](skills/engineering/refine-practices/SKILL.md) | Reads how the work has gone since the last retrospective and judges the active practices first: the classes of error that came back, each put to you with a recommended practice to add or retire, as one batch. | At the end of a milestone, when about five features have closed without one, or whenever you want to look back. |
 | [take-task](skills/engineering/take-task/SKILL.md) | Before you leave, gathers every decision a planned feature will need in one list; then builds the whole feature without you up to one pull request, deciding small gaps itself and stopping only for decisions that need you. | When a feature is planned and you want it built while you are away. |
 | [handoff](skills/productivity/handoff/SKILL.md) | Keeps the work's state in the tracker and leaves what only this conversation knows where a fresh session will look. | Before you stop, or when a session gets too long. |
 | [ship-release](skills/engineering/ship-release/SKILL.md) | Carries merged, accepted work to its users: version by the project's scheme, release notes in what users can do, migrations with their reverse, rollout by environment with a check after each step and the rollback named before any step runs. | When a feature's pull request is merged and the project's users get it later than the merge. |
@@ -447,7 +448,7 @@ installation tests.
 
 #### Install
 
-Install the full package, including all twenty-one skills and Jev's MCP server
+Install the full package, including all twenty-two skills and Jev's MCP server
 (verified with `@earendil-works/pi-coding-agent` 1.0.0):
 
 ```bash
@@ -483,7 +484,7 @@ project scope and hosts without the native MCP registration API.
 
 #### Install
 
-Install all twenty-one skills as a personal package, available in every
+Install all twenty-two skills as a personal package, available in every
 project (verified with Prime Agent 0.9.8 and 0.10.0):
 
 ```bash
@@ -875,6 +876,28 @@ can block merges; blocking direct tracker closure requires an actual transition
 guard. A local hook or prose instruction is not a tamper-proof boundary.
 
 ## Changelog
+
+- **0.101.0** looks back at the work instead of asking you about it. `close-out`
+  no longer puts its four questions to you after a feature: the engineer does
+  not yet know how the work turned out, and they were never answered. It reads
+  the run's own record instead, files the largest overruns against the forecast
+  as findings, and asks you nothing. The retrospective over a series of
+  features is now a skill of its own, `refine-practices`: `to-milestone` offers
+  it first when a milestone ends, `ask-shady2k` offers it once about five
+  features have closed in a project that plans no milestones, and it can be
+  started any time on request. It gathers the signals without judging them —
+  the forecast against what the work spent, the findings and their lanes,
+  reopened items, review findings, your corrections and the loops repeated in
+  the transcripts — judges the project's active practices, and turns a class of
+  error, seen in two different features and never told as its cases, into the
+  strongest fix that can hold it: the cause removed, a check that catches the
+  class, or a written practice. A practice is a record of its own under
+  `docs/practices/` with the id `PRA-…`, its own template and its own place in
+  the document check, plus one line in the agent doc; one over the soft budget
+  is proposed together with a candidate to retire, and a retired one keeps its
+  record and its reason. Everything is put to you as one batch, each item with
+  a recommendation. **This release raises the setup version: projects rerun
+  setup once.** An installed plugin updates by version.
 
 - **0.100.0** carries the work the rest of the set ends at — the merge — to
   the people who use the product. Release is a new `ship-release` skill,
