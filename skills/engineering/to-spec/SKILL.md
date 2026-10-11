@@ -33,7 +33,8 @@ Resolve the tracked work first. Choose the form by risk, uncertainty and scope,
 not by the project's TDD setting.
 
 - **Short delta**, for small, understood work: current and intended behaviour,
-  relevant constraints, acceptance scenarios and what is out. It may live in
+  relevant constraints, the frame as one line — what it is for and what
+  matters most — acceptance scenarios and what is out. It may live in
   the task body, linked to the feature's spec. A small feature still records
   its own behaviour.
 - **Bug:** keep the correct requirement and add a regression scenario. Change
@@ -46,7 +47,10 @@ for whom and why, what matters most when something must give, the main path,
 and the signal that it succeeded for its users. Search for it in the feature
 issue, the charter, the vision and the product's own documents; where part of
 it is missing, propose it with a recommendation for the owner to confirm or
-correct in the approval summary — one batch, not a questionnaire.
+correct in the approval summary — one batch, not a questionnaire. Each part
+is recorded once, in the section that carries it: for whom and why by Problem,
+what matters most when something must give by Solution, the main path and the
+success signal by DONE WHEN.
 
 Read then: the feature issue, the charter, the vision, the product's own
 documents where it keeps them (the user stories, use cases and product
@@ -106,10 +110,12 @@ checks instead of bending a correct requirement to the defect.
 
 ```markdown
 ## Problem
-What is wrong or missing today, as the person who has the problem tells it.
+What is wrong or missing today, and why it is worth doing for the person who
+has the problem, as that person tells it.
 
 ## Solution
-What they will be able to do, or what will be true, told the same way.
+What they will be able to do, or what will be true, told the same way; and
+what matters most when something must give.
 
 ## Stories
 The distinct behaviours and important boundary cases, without padding. Use
@@ -141,9 +147,9 @@ The outcome's own observable check; regressions can make it false again. With
 it, **where the outcome is seen**: the place a person reaches it (a screen, a
 command, a request, a log line) and the happy path through it, or that the
 outcome is internal and a person sees nothing, as the protocol's **Reached,
-not just built** requires. Where the frame carries a success signal for users
-(one exists more often than not), it is stated here as what will be observed,
-so acceptance can read it later; where none was agreed, nothing is invented.
+not just built** requires. Where the frame carries a success signal for users, it is stated here as what
+will be observed, so acceptance can read it later; where none was agreed,
+nothing is invented.
 ```
 
 `## DONE WHEN` stays last and belongs to the feature: the gate looks for it and
