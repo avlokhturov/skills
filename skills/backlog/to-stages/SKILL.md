@@ -31,7 +31,11 @@ decompose it, however clear it looks: say so and stop.
 Read the outcome's spec or short delta, the feature issue, the charter and the
 code it lands in; the conversation the spec came from is best of all. Without
 usable behaviour and criteria, use `to-spec`. For a bug, reuse its requirement
-and regression scenario.
+and regression scenario. Decompose only once the outcome's frame is there, by
+the protocol's
+[**The outcome frame comes before the work is specified**](references/lifecycle.md);
+where the spec or issue carries no frame, back to `to-spec` before any stage
+is drafted.
 
 Before drafting, read the open work that would replace what these stages stand
 on, by the protocol's **What would make the work obsolete is read before it is

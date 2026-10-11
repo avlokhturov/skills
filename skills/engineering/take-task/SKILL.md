@@ -81,7 +81,8 @@ Before the owner leaves, prepare the run so it needs nobody:
 - the feature's spec and its stages exist; later stages may stay coarse, and the
   coordinator breaks them into tasks when it reaches them, within the spec.
   On the shortest path above, the task's line is both, and this step asks
-  only what a run that size still owes: the branch, the checks, the estimate;
+  only what a run that size still owes: the frame's one line, the branch,
+  the checks, the estimate;
 - **the outcome frame exists**, by the protocol's
   [**The outcome frame comes before the work is specified**](references/lifecycle.md):
   for whom and why, what matters most, the main path, the success signal.
