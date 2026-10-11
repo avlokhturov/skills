@@ -82,6 +82,13 @@ Before the owner leaves, prepare the run so it needs nobody:
   coordinator breaks them into tasks when it reaches them, within the spec.
   On the shortest path above, the task's line is both, and this step asks
   only what a run that size still owes: the branch, the checks, the estimate;
+- **the outcome frame exists**, by the protocol's
+  [**The outcome frame comes before the work is specified**](references/lifecycle.md):
+  for whom and why, what matters most, the main path, the success signal.
+  A missing or inferred frame leads this batch: the frame as found or inferred,
+  and one recommendation per missing part, for the owner to confirm whole or
+  correct by item — an autonomous run otherwise optimises an outcome nobody
+  stated. A frame the spec or the issue already holds is named, not asked again;
 - read the spec, the stages and the code the work lands in, and list every
   decision the run will meet: open forks, choices the spec leaves open, the
   assumptions you would otherwise make alone, the risks. Check what you can

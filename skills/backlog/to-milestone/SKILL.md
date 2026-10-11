@@ -83,6 +83,12 @@ The draft covers:
    who observes it, and the one check that watches it. An outcome without a
    check is still an area of work: sharpen or split it. Independent outcomes
    can progress in parallel; their order in the charter is not a dependency.
+   Each outcome carries its success signal for users, by the protocol's
+   [**The outcome frame comes before the work is specified**](references/lifecycle.md):
+   how we will know the slice worked for the people it serves. Where the
+   project keeps hypotheses, each signal is tied to the hypothesis whose
+   measure will read it, and the release that carries the outcome records
+   which hypotheses now wait on their measures.
 3. **What is out**, by name: an outcome somebody will assume is in, not an
    area nobody may touch.
 4. **What carries over** from the ending milestone, and what is deferred.

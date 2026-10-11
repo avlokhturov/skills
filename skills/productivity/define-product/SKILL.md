@@ -37,9 +37,16 @@ In this order, skipping what the person has already said:
 2. what they do about it today;
 3. what changes for them when the product exists;
 4. what would prove the idea right;
-5. the first thing a user can do with it, step by step;
-6. what it will not do;
-7. what is still unknown.
+5. what matters most when time or effort runs short — what stays and what
+   gives first;
+6. the first thing a user can do with it, step by step;
+7. what it will not do;
+8. what is still unknown.
+
+The walk is the outcome frame taken at its source, by the protocol's
+[**The outcome frame comes before the work is specified**](references/lifecycle.md):
+questions 1 and 3 say what the product is for and for whom, 4 its success
+signal, 5 what matters most when something must give, and 6 the main path.
 
 - **One question per message, with an example answer** to react to: "Who
   opens it first in the morning? For instance, the cafe owner before opening,

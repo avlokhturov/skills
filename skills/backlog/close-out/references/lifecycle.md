@@ -48,6 +48,23 @@ never a silent omission. This generalizes what `take-task` said of design
 alone: sizing by size, uncertainty and risk was one stage's tailoring, and
 this is the cycle's.
 
+**The outcome frame comes before the work is specified.** Before work is
+specified or run, its frame is established: what it is for and for whom, what
+matters most when something must give, the main path through it, and the
+signal that it succeeded for its users. This is outcome-based planning: jobs
+to be done, success metrics, and priority set under trade-off. The frame is
+searched for first — the product's documents, the charter, the issue, the
+conversation — by [deciding.md](deciding.md)'s **A question is searched for
+before it is asked**; a frame already stated is not asked again. What the
+search leaves missing is proposed with a recommendation and confirmed or
+corrected as one batch, by [speaking.md](speaking.md)'s **An ask carries its
+own substance**, never question by question. A small bug or a trivial change
+carries a one-line frame, by **Tailoring is the rule**: its size is one line,
+not zero. What a frame holds is what later stages read: an outcome's success
+signal is the frame's, measured by [product.md](product.md)'s hypothesis form
+where one exists, and seen in use by [checks.md](checks.md)'s **Reached, not
+just built**.
+
 **The shortest path is the default.** A stage is added because the work's
 scale, uncertainty or risk calls for it, never because it exists. A
 trivial, reversible, understood change — a colour, a text, a constant — is

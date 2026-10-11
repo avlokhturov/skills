@@ -40,7 +40,15 @@ not by the project's TDD setting.
   the spec only for a gap or an approved change of behaviour.
 - **Full form** (step 4), when risk, uncertainty or scope justify it.
 
-Read first: the feature issue, the charter, the vision, the product's own
+Establish the frame before drafting, by the protocol's
+[**The outcome frame comes before the work is specified**](references/lifecycle.md):
+for whom and why, what matters most when something must give, the main path,
+and the signal that it succeeded for its users. Search for it in the feature
+issue, the charter, the vision and the product's own documents; where part of
+it is missing, propose it with a recommendation for the owner to confirm or
+correct in the approval summary — one batch, not a questionnaire.
+
+Read then: the feature issue, the charter, the vision, the product's own
 documents where it keeps them (the user stories, use cases and product
 requirements this feature serves), the code it lands in, the glossary and
 decisions already recorded in the area. A missing conversation
@@ -133,7 +141,9 @@ The outcome's own observable check; regressions can make it false again. With
 it, **where the outcome is seen**: the place a person reaches it (a screen, a
 command, a request, a log line) and the happy path through it, or that the
 outcome is internal and a person sees nothing, as the protocol's **Reached,
-not just built** requires.
+not just built** requires. Where the frame carries a success signal for users
+(one exists more often than not), it is stated here as what will be observed,
+so acceptance can read it later; where none was agreed, nothing is invented.
 ```
 
 `## DONE WHEN` stays last and belongs to the feature: the gate looks for it and
