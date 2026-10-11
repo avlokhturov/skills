@@ -117,8 +117,8 @@ Pi package metadata alone does not connect Jev on such a fork.
 ## Prime 0.9.8 compatibility
 
 Prime 0.9.8 uses the same package format but has no `registerMcpServer` API.
-The extension leaves Jev unregistered without stopping Prime; all sixteen skills
-load. Install the package for all your projects:
+The extension leaves Jev unregistered without stopping Prime; all twenty-one
+skills load. Install the package for all your projects:
 
 ```bash
 prime-agent package install git:github.com/shady2k/skills
@@ -143,8 +143,8 @@ are ignored for execution, so Jev needs the personal `mcp add` even when the
 package is installed locally. Installing skills does not grant project consent,
 store credentials, call a model or automatically connect Jev in Prime 0.9.8.
 
-The Prime 0.9.8 release was tested with package install, RPC discovery of all
-sixteen skills, and ordinary TUI startup in an isolated home. Its native MCP
+Prime 0.9.8 compatibility is tested with package install, RPC discovery of all
+twenty-one skills, and ordinary TUI startup in an isolated home. Its native MCP
 client initialized the separately configured Jev server and listed its tool
 without a model call. Interactive Jev use still needs Prime login and the
 project's own Jev consent and credentials.
@@ -166,7 +166,7 @@ unconfigured call refuses before any model request.
 
 `test:pi:smoke` requires a supported Pi executable on `PATH` (or set `PI_BIN`
 to its path). It installs the local package in disposable Pi configuration,
-uses the real CLI's RPC mode to verify all sixteen skills, and checks live
+uses the real CLI's RPC mode to verify all twenty-one skills, and checks live
 Jev tool discovery through Pi's built-in MCP connection. It runs offline with
 a minimal environment, a temporary home and no provider keys or model prompts.
 It does not install this package in the developer's own Pi configuration.
@@ -180,8 +180,8 @@ PRIME_AGENT_KERNEL_PYTHON="$HOME/.prime/agent/kernel-venv/bin/python" npm run te
 ```
 
 It installs into disposable personal
-settings, configures Jev through Prime's native `mcp add`, checks all sixteen
-skills through RPC, starts the actual TUI to catch extension startup errors,
+settings, configures Jev through Prime's native `mcp add`, checks all
+twenty-one skills through RPC, starts the actual TUI to catch extension startup errors,
 and initializes Jev through Prime's Python MCP client to list its tool.
 A clean unauthenticated TUI does not create a kernel in the temporary home,
 so the test uses only that explicitly supplied Python. It makes no model calls;
