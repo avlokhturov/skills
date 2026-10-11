@@ -50,7 +50,9 @@ the classes are named, not the culprits.
   adapter's export, in the format of [`time-format.mjs`](time-format.mjs))
   prints it the same from every machine: `report` and `pace` for how past
   runs went and how long work really takes here, and
-  `progress --item <feature or milestone>` for where each stands now.
+  `progress --item <feature or milestone>` for where each stands now. The
+  ledger beside it ([`ledger.mjs`](ledger.mjs)) reads this machine's sessions
+  whole, which is where a closed run's transcript is looked through.
 - The findings filed since then and the lanes they landed in, and every
   item that was reopened.
 - The review findings, both accepted and rejected.
