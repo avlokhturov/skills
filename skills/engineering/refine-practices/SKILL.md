@@ -73,8 +73,8 @@ proposal is checked first, so a class already retired is not filed again.
   changed into one that can.
 - **Obsolete**: its cause is gone; retired with the reason, beside the work
   that removed the cause.
-- **Useless**: its class did not appear for two milestones, and the practice
-  was never applied meanwhile.
+- **Useless**: its class did not appear for two retrospectives, and the
+  practice was never applied meanwhile.
 - **Conflicting**: it contradicts another practice, the agent doc, or the
   set's rules. Which one survives is the owner's choice.
 - **Absorbed**: a check, or the change that removed the cause, now covers
@@ -102,9 +102,9 @@ cases**](references/keeping.md):
 - A fix of the set itself, a practice its own skills should carry, goes to
   its author through `report-to-shady2k`.
 
-A soft budget holds the active practices. A proposal that puts one over it
-is made together with a named candidate to retire, never with the budget
-grown in silence.
+A proposal that would put the active practices over the budget that rule sets
+is made together with a named candidate to retire: the number, and how it is
+changed, belongs to the rule and to the agent doc beside it, not to this step.
 
 ## 5. One batch to the owner
 

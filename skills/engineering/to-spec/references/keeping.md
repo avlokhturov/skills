@@ -58,7 +58,11 @@ cases: the cases are evidence, and the class is what a reader can act on. A
 retired practice keeps its record, says it in its `Status`, and gives the reason
 in its own Practice section, so the next practice is written against it. A
 practice whose cause is removed is retired in the same change that removed it,
-as a lesson is. What belongs to this set itself is reported to its author, never
+as a lesson is. A project holds a soft budget of active practices: about ten by
+default, the owner may set another number at a retrospective, and the number in
+force stands beside the practice lines in the agent doc, not in any setting. A
+proposal that would put the practices over it is made together with a named
+candidate to retire, never with the number raised in silence. What belongs to this set itself is reported to its author, never
 written into a project's practices; the agent doc carries one line per active
 practice beside the practices folder, so an agent meets the practice where it
 already reads.
