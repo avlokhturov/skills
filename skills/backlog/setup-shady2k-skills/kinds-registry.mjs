@@ -23,10 +23,12 @@
  * the set's default: a chain document keeps its kind by its id wherever
  * under docs/ it stands, so a described repository's derived documents are
  * laid out beside the repository they describe. Fields nobody knows are
- * refused, the way the contract's schema refuses them — the set's reader
- * and the contract's check read the same refusals, so a registry this
- * reader reads is a registry the check passes. Setup never resets a
- * registry that stands — it verifies it and reports, and writes one only
+ * refused, the way the contract's schema refuses them. This reader is a
+ * line reader: it refuses on the lines it sees (the shapes, the places,
+ * the words, and the YAML features it cannot read — anchors, aliases,
+ * merge keys, custom tags); what a YAML parser would see beyond that is
+ * the contract check's word, and the conformance run carries it. Setup
+ * never resets a registry that stands — it verifies it and reports, and writes one only
  * where the product holds none.
  *
  * The published example is the kind table rendered into the set's own
@@ -132,12 +134,11 @@ const fail = (file, line, message) => ({ ok: false, line, message: `${file}:${li
  * carries `stages` (a list of {id, name?} entries) and `kinds` (a list of
  * maps with the five fields), or the first refusal ({ ok: false, line,
  * message }), already `file:`-prefixed. Nothing else is read or carried:
- the contract's
- * schema refuses an unknown property at any level, and so does this reader.
- * The contract's check is the word when it stands: this reader refuses what
- * it can line by line (anchors, aliases, merge keys, custom tags, the name
- * and prefix shapes), and the conformance run carries the refusals the set's
- * reader cannot see.
+ * the contract's schema refuses an unknown property at any level, and so
+ * does this reader. The contract's check is the word when it stands: this
+ * reader refuses what it can line by line (anchors, aliases, merge keys,
+ * custom tags, the name and prefix shapes), and the conformance run
+ * carries the refusals the set's reader cannot see.
  */
 export function parseKinds(text, file) {
   const lines = text.split("\n");
@@ -145,10 +146,32 @@ export function parseKinds(text, file) {
   // line it stands on: an anchor, an alias, a merge key or a custom tag
   // carries meaning the line reader does not hold, so it may not pass as
   // words.
+  // A syntax position starts a line's node or follows its `- ` or its
+  // first `key:`: an anchor, alias, tag or merge key on such a place is
+  // YAML's own grammar, not the reader's words. An `&` or `!` inside a
+  // hint's words is text, and text is read as words.
+  const strictProblemOf = (raw) => {
+    const stripped = raw.replace(/(^|\s)#.*$/, "");
+    if (!stripped.trim()) return undefined;
+    if (/^\s*(?:-\s+)?<<:/.test(stripped)) return `a merge key (<<:) stands where a field name goes`;
+    const nodeStarts = [];
+    const lead = /^(\s*)(-\s+)?/.exec(stripped);
+    if (lead[2]) nodeStarts.push(lead[1].length + lead[2].length);
+    else nodeStarts.push(lead[1].length);
+    const firstPair = /:\s+(\S.*)$/.exec(stripped.slice(Math.max(...nodeStarts)));
+    if (firstPair) nodeStarts.push(Math.max(...nodeStarts) + firstPair.index + 2);
+    for (const at of nodeStarts) {
+      const there = stripped.slice(at);
+      const seen = /^[&*][A-Za-z0-9_-]|^!/.exec(there);
+      if (seen) return `${JSON.stringify(seen[0])} stands where a node of the registry begins — an anchor (&), an alias (*), or a custom tag (!) is refused: the registry is plain words`;
+    }
+    return undefined;
+  };
   for (let x = 0; x < lines.length; x++) {
     if (lines[x].trim() === "" || lines[x].trim().startsWith("#")) continue;
-    if (/(^|\s)[&*][A-Za-z]|(^|\s)!|<<:/.test(lines[x].replace(/(^|\s)#.*$/, "")))
-      return { ok: false, line: x + 1, message: `${file}:${x + 1}: this line reads ${JSON.stringify(lines[x].trim())} — anchors (&), aliases (*), merge keys (<<:) and custom tags (!) are refused: the registry is plain words, and a line this reader cannot read is not a line to pass` };
+    const problem = strictProblemOf(lines[x]);
+    if (problem)
+      return { ok: false, line: x + 1, message: `${file}:${x + 1}: ${problem} — this line reads ${JSON.stringify(lines[x].trim())}` };
   }
   const code = (l) => l.replace(/(^|\s)#.*$/, "").trimEnd();
   const trim = (l) => code(l).trim();

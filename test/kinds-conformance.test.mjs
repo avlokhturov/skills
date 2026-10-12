@@ -4,9 +4,10 @@
  * milestone's outcome 7). Three lanes join here:
  *
  * - Lane 1 (this repository, live today): the registry the set writes at
- *   setup is the writer's own bytes and reads under the set's own reader —
- *   which refuses exactly what the contract's check refuses, so a registry
- *   this lane accepts is one the contract's schema accepts.
+ *   setup is the writer's own bytes and reads under the set's own reader,
+ *   a line reader that refuses the contract schema's shapes and the YAML
+ *   features it can see; the contract's check is the word for what a full
+ *   YAML reader would read beyond those lines.
  * - Lane 2 (the engine's contract, madarch-mr8i's landing): the contract's
  *   check command (`bun run contract:check`) runs over its own published
  *   conformance examples — the plain and registry products, the registry
