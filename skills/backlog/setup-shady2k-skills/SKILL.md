@@ -68,8 +68,13 @@ folder is, and setup differs by the answer:
 - **A product repository**: this repository holds the product's knowledge and
   none of its code, so its document places are the layout's and are asked
   about nowhere: they are the ones [documents.md](documents.md) gives a
-  product repository. The tracker lives here, and the product-documents
-  check is wired as the commit gate as it is wherever this set is installed.
+  product repository. The kinds registry is written here: run
+  `node kinds-registry.mjs` from this skill's directory — it writes
+  `kinds.yaml` beside the manifest where the product holds none ([the kinds
+  registry](references/product.md): every kind's id prefix, folder, stage and
+  next-step hint) and reports one that stands, never resetting it. The
+  tracker lives here, and the product-documents check is wired as the commit
+  gate as it is wherever this set is installed.
 - **A code repository of a product** (a git repository under a product's
   `repos/`): a product has one tracker and it is the product repository's, so
   no tracker is chosen or installed here and no queue is cleaned; every task
