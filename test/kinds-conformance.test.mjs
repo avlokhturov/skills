@@ -48,9 +48,16 @@ const CONTRACT_CHECK = process.env.PRODUCT_CONTRACT_CHECK ??
   (process.env.MADARCH && existsSync(join(process.env.MADARCH, "scripts", "check-contract.ts"))
     ? `cd ${shellQuote(process.env.MADARCH)} && bun run contract:check`
     : undefined);
+// The skip is the local cold run's honest "the engine's contract is not on
+// this machine". In CI the run carries the pin (the workflow sets MADARCH),
+// so a skip there is a wiring that came off, and the lane refuses instead
+// of passing nothing.
+const IN_CI = process.env.GITHUB_ACTIONS === "true";
 const SKIPPED = CONTRACT_CHECK
   ? undefined
-  : "the product-repository contract's check command is not named on this machine: the contract lane (madarch-mr8i's landing) publishes `bun run contract:check` beside its schemas and examples, and the conformance run sets PRODUCT_CONTRACT_CHECK to it — or passes MADARCH, the engine checkout that carries the contract, and the lane derives the same. Until either is set, this lane skips; it never passes a registry it did not check.";
+  : IN_CI
+    ? "the set's checks run in CI without the product-repository contract: the workflow checks madarch out at the pin the protocol records beside the setup version and sets MADARCH from it — the contract check runs here and fails on a refusal, never skips"
+    : "the product-repository contract's check command is not named on this machine: the contract lane (madarch-mr8i's landing) publishes `bun run contract:check` beside its schemas and examples, and the conformance run sets PRODUCT_CONTRACT_CHECK to it — or passes MADARCH, the engine checkout that carries the contract, and the lane derives the same. Until either is set, this lane skips; it never passes a registry it did not check.";
 
 test("the example the set publishes is the kinds the writer renders, verified by the set's own reader", () => {
   const run = spawnSync(process.execPath, [join(SETUP, "kinds-registry.mjs"), "--selftest"], { encoding: "utf8" });
@@ -63,6 +70,10 @@ test("the example product verifies as a whole with --check", () => {
   assert.equal(run.status, 0, `the example product's registry does not verify:\n${run.stdout}${run.stderr}`);
 });
 
+if (IN_CI && !CONTRACT_CHECK)
+  test("the set's checks run in CI and refuse to skip the contract check", () => {
+    assert.fail("the set's checks run in CI without the product-repository contract: the workflow checks madarch out at the pin the protocol records beside the setup version and sets MADARCH from it — the contract check runs here and fails on a refusal, never skips");
+  });
 test("the contract's check reads its own schema and conformance examples", { skip: SKIPPED }, () => {
   // The contract's own walk: the layout's example products, the registry
   // refusal cases and the document cases, exit 0 when every case reads as
@@ -82,4 +93,15 @@ test("the contract's check reads the registry the set's writer rendered, too", {
   // shell would read reaches the check as itself.
   const run = spawnSync("sh", ["-c", `${CONTRACT_CHECK} --src "$1"`, "sh", EXAMPLE], { encoding: "utf8" });
   assert.equal(run.status, 0, `the contract check refused the written example (exit ${run.status}):\n${run.stdout}${run.stderr}`);
+});
+
+test("the contract's check walks the set's example product as a whole product, too", { skip: SKIPPED }, () => {
+  // The layout, every document's fields and the registry, which is the
+  // contract's own walk over a product folder: the set's example product is
+  // a whole conforming product (its repos/ placeholder included), so the
+  // walk reads it the way a reader walks it, not only the registry file. A
+  // refusal anything this walk finds is the run's red.
+  assert.ok(existsSync(join(EXAMPLE_PRODUCT, "repos")), `the example product's repos/ stands nowhere`);
+  const run = spawnSync("sh", ["-c", `${CONTRACT_CHECK} --products "$1"`, "sh", join(SETUP, "fixtures/product")], { encoding: "utf8" });
+  assert.equal(run.status, 0, `the contract check refused the example product as a whole (exit ${run.status}):\n${run.stdout}${run.stderr}`);
 });
