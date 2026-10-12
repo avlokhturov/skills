@@ -37,7 +37,9 @@ for does not widen the scope it decides on.
 Read the spec's scenarios and seams, the product requirements the outcome
 serves, the project's standing quality scenarios and constraints, and the
 code and documents of the area the change lands in. The drivers come before
-any option, by design.md's **Drivers before options**; the inventory of
+any option, by design.md's **Drivers before options**, each traced to the
+outcome frame the protocol's [**The outcome frame comes before the work is
+specified**](references/lifecycle.md) establishes; the inventory of
 what exists comes before any option too, by **Inventory before options**.
 What is material and unknown goes to `brainstorming`, `to-research` or
 `to-prototype`, never into a guess.
@@ -47,7 +49,10 @@ What is material and unknown goes to `brainstorming`, `to-research` or
 Options and choice by **Options from named patterns** and **The choice is
 recorded where it will be read again**: through `model-domain` where the
 project keeps decision records, with the views the decision turns on drawn
-or updated beside it. What the
+or updated beside it. The options offered stand on the state of the practice,
+by the protocol's [**A proposal starts from the state of the practice**]
+(references/deciding.md), whose architectural case design.md's **Options from
+named patterns** is. What the
 owner must decide — only a quality attribute traded for another, by **The
 owner hears only the trade** — is asked here, one question at a time, with
 its mechanism; the rest is decided and recorded alone.

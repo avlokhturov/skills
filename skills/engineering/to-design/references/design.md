@@ -23,6 +23,17 @@ the response, and a measure — the project's standing ones and the work's
 own, with ISO/IEC 25010:2023's categories read as the list of what might be
 missing; and the constraints, technical, organisational and legal, the
 design must accept. A scenario without a measure is a wish, not a driver.
+Every driver the design gathers, and every option it draws from them, is
+traced to the life cycle's [**The outcome frame comes before the work is
+specified**](lifecycle.md): what the change is for, for whom, and what a
+failure costs them. A driver that serves no outcome in the frame is a wish
+too. A design taken from the technical drivers alone — what is faster,
+tidier or more correct in itself — is a decision taken from the wrong point
+of view. Where the frame is missing or ambiguous, the frame comes first,
+got by that rule: that is the first question to the person, with a
+recommendation, before any option is drawn. The product question a
+technical choice actually answers is put to the person, not answered by
+the design.
 
 **Inventory before options.** Before any option, read what exists: the
 building blocks and the state each owns, the interfaces between them, the
@@ -38,6 +49,9 @@ application architecture (PoEAA) and of integration (EIP, and POSA) for
 structure and messages, the stability and operations tactics of Release
 It!, the twelve factors for deployment, STRIDE and OWASP ASVS where
 security is a driver, WCAG 2.2 and W3C design tokens where an interface is.
+This list is the architectural case of [deciding.md](deciding.md)'s **A
+proposal starts from the state of the practice** — a proposal stands on
+what is established for its problem.
 Each option is evaluated against the scenarios on steady state, growth,
 failure, security and operability — what it does all day, at ten times the
 load, when a part of it fails, and what it costs to operate. Among them is
