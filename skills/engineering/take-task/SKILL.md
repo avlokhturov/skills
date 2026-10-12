@@ -323,8 +323,11 @@ by **A decision given is not reopened by better analysis** and **A message that
 changes no next action is not sent**.
 
 Every wait is filled, by **A wait is filled** and **A submitted branch is
-frozen**. When the owner writes mid-run, the run goes on and a separate session
-takes the conversation, by **The owner's time is the scarce one**. The absence
+frozen**. What the run's own process costs — the records, the rounds of review,
+a worker idle, a command waited on — is said to the owner unasked, in their
+terms and with a counted figure, by the protocol's **A cost of the process is
+the owner's information**. When the owner writes mid-run, the run goes on and a
+separate session takes the conversation, by **The owner's time is the scarce one**. The absence
 the preflight recorded, and a coordinator taking the run over mid-flight,
 follow **The session opens with the picture**.
 

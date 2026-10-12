@@ -272,6 +272,25 @@ rides neither: the supervising session works it first, by speaking.md's
 **A run's question is worked before it is passed on**, and a push says only
 that a decision waits, what about, and what waiting costs.
 
+**A cost of the process is the owner's information.** The agent runs the
+process and the owner pays for it, and a price paid is not an internal of this
+set: [**Never show the kitchen**](speaking.md) hides the form the work takes
+inside, never what it costs. Bookkeeping, repeated rounds of the same review,
+workers idle, a command stuck and waited on are time the owner's work spent,
+and their attention is the one input a run cannot produce. So when the process
+itself takes a noticeable share of a run, or one kind of episode repeats — the
+third wait on the same command, the fourth round of the same review — the
+coordinator says so **unasked**, in the owner's terms and with a counted
+figure: what it cost, what it delays and what would cut it, cut by the
+coordinator where it may and put to the owner where only they can cut it. A
+stream of events that each looked like nothing new is a measure to count, not
+noise to silence, and a watch narrowed to stop showing one kind of event has
+removed the thing that would have shown its cost. The figure is counted, and
+read to the edges of what it covers, by [deciding.md](deciding.md)'s **A claim
+reaches only as far as its evidence**; the report rides the push the run
+already owes (**The run's progress is pushed, not pulled**) and asks nothing
+of the owner of its own.
+
 **A run that never came back is found, not assumed.** An unattended run cannot
 report its own death; what it leaves behind is a hold that stops moving and a
 record with no end. So before it goes unattended its deadline, by **Silence is

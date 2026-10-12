@@ -94,8 +94,11 @@ task's own id, open questions about how agents split their work. Say only what
 it means for their work and their product. Name such a thing only when the
 person must act on it themselves, and then in plain words. The same goes for
 changes to the set's own bookkeeping: where it keeps versions, which fields it
-added or removed. If nothing changes for the person's work, say nothing. So
-it goes for how the set's checks judge work (at which revision, over which
+added or removed. If nothing changes for the person's work, say nothing. The
+rule hides the form this work takes inside, not its price: what the process
+costs the owner, in time and in waits, is reported unasked, by
+[running.md](running.md)'s **A cost of the process is the owner's
+information**. So it goes for how the set's checks judge work (at which revision, over which
 commits, what counts as proof): getting that right is the agent's, and never a
 decision put to the person. What they hear is its consequence: what is held
 back and until when, and whether anything is now checked less strictly; only
