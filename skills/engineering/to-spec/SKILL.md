@@ -71,8 +71,11 @@ seams, at the level where the behaviour is visible, enough to cover the
 important success and failure scenarios.
 
 Recommend the coverage as one proposal: what is watched, why there, and what is
-left unwatched. Only a real coverage or risk trade-off needs the owner; the test
-level is the agent's choice. Seams bound acceptance; they do not forbid unit or
+left unwatched. The coverage stands on what is established for that level of
+checking, by the protocol's [**A proposal starts from the state of the
+practice**](references/deciding.md), with the one the project already follows
+preferred to a new arrangement. Only a real coverage or risk trade-off needs
+the owner; the test level is the agent's choice. Seams bound acceptance; they do not forbid unit or
 integration tests through other stable interfaces.
 
 Include how failures will be seen, as the protocol's [**Failures explain

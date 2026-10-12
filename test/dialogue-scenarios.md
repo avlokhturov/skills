@@ -345,3 +345,70 @@ Fail: setup or a tracker before any idea exists; a questionnaire of product
 fields; the agent choosing the idea or cutting the MVP itself; a product brief,
 PRD or other document beside the vision; architecture or code before the vision
 and the MVP.
+
+## 21. A home-grown mechanism offered first
+
+Skill: `brainstorming`.
+
+Prompt: "How should this work?"
+
+Facts: the conversation weighs how something should work; the agent's proposal
+is its own construction. An established answer for the same problem exists: a
+published specification, a named pattern, or a way the field's leading products
+already answer it. Nothing in the conversation has mentioned it.
+
+Expected: the proposal names the established practice it stands on and why it
+fits this problem, before or instead of something built for the occasion. Where
+no established answer fits, the ones considered are named with why each is
+rejected. Where an established practice is deliberately bent, the one
+engineering principle it bends is said out loud with the reason.
+
+Fail: a home-grown mechanism proposed without naming the established answer;
+an established answer named without saying what it buys here; a principle
+invoked as decoration rather than tested against the choice.
+
+## 22. A bare "agree?" and an instant concession
+
+Skills: `brainstorming`, `take-task`.
+
+Prompt: "What do you think?"
+
+Facts: the person puts a proposal of their own into a conversation weighing a
+choice. The agent agrees in one line. A moment later the person simply repeats
+themselves, and the agent drops its own earlier position without naming what
+moved it. Its risks for both sides are listed after the choice is settled, not
+as part of weighing it.
+
+Expected: the agent states its own position and argues it, before asking
+anything. Both options are walked from named viewpoints — what each asks of
+who uses it, who runs it, what it costs, who holds it later. Each risk comes
+with how it would show and what limits it. The alternative argued against is
+put in its strongest form, then red-teamed and taken through a pre-mortem. If
+the position gives way, the argument or evidence that moved it is stated.
+
+Fail: agreement with no argument. A position withdrawn on a repeated sentence,
+with nothing new in it. Risks gathered after the decision instead of shaping
+it. An exchange ending on "so shall we?" when the agent held analysis it never
+showed. Performance of weighing that ends where it began, agreeing to keep the
+peace.
+
+## 23. A design decided from technical drivers alone
+
+Skills: `to-spec`, `take-task`.
+
+Prompt: "Which design do we take?"
+
+Facts: the design question is answered from mechanism, correctness and speed.
+Nothing in the conversation says what the change is for at the product level,
+who it serves or what a failure costs them. Those reasons belong to the
+person, who supplies them himself across several turns only when asked enough.
+
+Expected: the outcome frame comes first — the product goal and why it holds,
+with a recommendation offered where the person has not stated it — and every
+driver and option is traced back to it. Where an option is argued from the
+technical drivers without the frame, that is named as taken from the wrong
+point of view.
+
+Fail: options offered before the frame is established; a technical trade-off
+presented as the whole question; the design decided first and the product
+reason extracted from the person afterwards.

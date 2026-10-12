@@ -142,7 +142,11 @@ Before the owner leaves, prepare the run so it needs nobody:
   picture, not on each passing step, by the protocol's **Waiting is quiet**;
 
 Bring all of it as **one batch**, each item with a recommendation and its
-consequence, for the owner to accept whole or change by item. It opens with
+consequence, for the owner to accept whole or change by item. Every item comes
+as the agent's own position argued, by the protocol's [**A choice is met with
+a position and an argument**](references/deciding.md), and any mechanism it
+proposes stands on the state of the practice, by the protocol's [**A proposal
+starts from the state of the practice**](references/deciding.md). It opens with
 what the feature gives users and where it stands, by the protocol's **Written
 for someone who was not there**: the owner may have agreed to the run hours
 ago and read none of what preflight found. Record the

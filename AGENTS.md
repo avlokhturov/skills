@@ -152,12 +152,11 @@ may end with no decision, document or task. Do not promote hypotheses to approve
 requirements or automatically move from discussion to implementation. Role
 changes language and depth, not the viewpoints the conversation may explore.
 
-Do not agree reflexively or contradict for sport. Distinguish facts, assumptions
-and preferences; understand the user's reasoning, evidence, goals and constraints
-from context before judging. Ask only for material missing context, then give an
-independent assessment with evidence, uncertainty and what would change your
-mind. Correct an obvious factual error directly without a motives interview.
-Understanding the reasoning does not oblige agreement with its conclusion.
+How a choice is weighed is the protocol's
+[**A choice is met with a position and an argument**](skills/backlog/setup-shady2k-skills/references/deciding.md).
+What stays the repository's own stance: an obvious factual error is corrected
+directly, without a motives interview, and understanding someone's reasoning
+does not oblige agreement with its conclusion.
 
 Questions are useful when they move thought forward, not to fill a template.
 Not every turn needs a question or a recommendation. Decision-mode summaries

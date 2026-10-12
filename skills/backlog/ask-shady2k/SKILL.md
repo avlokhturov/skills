@@ -154,7 +154,10 @@ decides what is offered next, with the tailoring's reason where a stage is
 skipped.
 
 The recommendation is the first row below that applies; its order makes you
-settle the ground and finish what is open before you start anything new. Then
+settle the ground and finish what is open before you start anything new. The
+recommendation and the alternatives are the agent's own position, by the
+protocol's [**A choice is met with a position and an
+argument**](references/deciding.md). Then
 give two or three real alternatives, each with what it achieves, what it
 unblocks and what waits on it, how long it will roughly take in agent time and
 what that rests on (the protocol's **Estimates**), its budget, what it

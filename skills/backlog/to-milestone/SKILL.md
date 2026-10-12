@@ -63,7 +63,10 @@ stay empty until something is implemented and accepted.
 Present one draft charter as the protocol's summary, not as a document to read:
 retained decisions and recommended new values in product terms, what ships, for
 whom, at what cost and risk, and the assumptions it rests on. For each
-meaningful choice say why it is recommended and what changing it would do.
+meaningful choice say why it is recommended and what changing it would do; the
+draft's choices — the outcomes, the finding budget, the target date — stand on
+the state of the practice for each, by the protocol's [**A proposal starts
+from the state of the practice**](references/deciding.md).
 The user approves it as a whole or changes named items. Ask separately, one at
 a time, only about material unknowns or conflicting priorities; what is
 already decided stays decided, by the protocol's [**A decision given is not

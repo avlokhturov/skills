@@ -47,6 +47,10 @@ The walk is the outcome frame taken at its source, by the protocol's
 [**The outcome frame comes before the work is specified**](references/lifecycle.md):
 questions 1 and 3 say what the product is for and for whom, 4 its success
 signal, 5 what matters most when something must give, and 6 the main path.
+What you propose or advise during the walk — a belief to test, a thing to
+look up, a way to do it — stands on the state of the practice, not on your
+habit, by the protocol's [**A proposal starts from the state of the
+practice**](references/deciding.md).
 
 - **One question per message, with an example answer** to react to: "Who
   opens it first in the morning? For instance, the cafe owner before opening,
