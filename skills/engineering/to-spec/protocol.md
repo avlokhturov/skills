@@ -164,8 +164,10 @@ close is its summary. A span that ended with
 no receipt is found by the gate and written from the transcript where it is;
 where no machine has it, its time is unknown, said so, and never zero.
 The records a task needs are proportionate to it: a small task is one
-acceptance record naming its CI run and its review, and what CI and the review
-already hold is read from them, never retyped as records. What the owner's time
+acceptance record naming its CI run and its review, written where the task's own
+acceptance is kept — its item's recorded result with that evidence, the same
+place a stage's acceptance evidence goes — and what CI and the review already
+hold is read from them, never retyped as records. What the owner's time
 figures count — the claim and the span receipt — stays at every size, and so
 does what a stage's or a feature's acceptance is judged from. Records ride with
 the work's own landing, never as a commit of their own. A figure
@@ -220,18 +222,21 @@ tracker reads it that way.
 
 **The tracker stays in step across machines.** One state for every person and
 agent, and its own mechanism keeps it so: a change is published to the shared
-remote after a short debounce and each machine takes the others' snapshots on a
-short timer, never an agent's remembering to publish or to fetch. The merge is
-per item and never by text: records that only append keep both sides, the same
-field changed twice takes the newer value with the overwritten one recorded on
-the item, and a refused push fetches, merges and pushes again. A claim and a
-status transition count only once they are on the remote — fetch, merge, write,
-push — and the remote accepts a push only on top of its own latest state, so of
-two simultaneous claims one lands and the other session re-reads and takes other
-work rather than holding an item twice. A check that needs the tracker at a code
-revision reads the newest snapshot published at or before it, by the association
-a snapshot records for the revision it was published from and never by a clock.
-A project whose tracker is reached as a service keeps the same duties over that
+remote within seconds of it — not when a branch lands, and not when an agent
+remembers — and each machine takes the others' snapshots on a timer short
+enough that what it reads is never older than that. The merge is per item and
+never by text: records that only append keep both sides, the same field changed
+twice takes the newer value with the overwritten one recorded on the item, and
+a refused push fetches, merges and pushes again. A claim and a status
+transition count only once they are on the remote — fetch, merge, write, push —
+and the remote accepts a push only on top of its own latest state, so of two
+simultaneous claims one lands and the other session re-reads and takes other
+work rather than holding an item twice. A check that needs the tracker at a
+code revision reads the store as it stood when that revision was cut, recorded
+under the revision's own name at that moment and never moved afterwards; where
+no such recording exists, the read is refused rather than guessed, because a
+later snapshot that happens to name the same revision is not that state. A
+project whose tracker is reached as a service keeps the same duties over that
 service.
 
 **Two lanes outside the flow.**

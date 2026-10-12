@@ -378,7 +378,10 @@ A worker's report holds the task, its linked commits, the changed behaviour, che
 commands and results, open doubts, decisions it made and integration notes.
 Record `submitted` with the result's revision or location and evidence before
 releasing the worker's claim. A worker's "done" means ready to integrate, not
-accepted.
+accepted. On a task taken alone, that evidence is its whole acceptance record:
+name the CI run and the review in it, and what each of them holds is read from
+them rather than retyped, by the protocol's **How the work went is kept on the
+item**.
 
 ## 5. Integrate and handle what the spec did not foresee
 

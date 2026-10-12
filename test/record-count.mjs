@@ -52,6 +52,7 @@ try {
   };
   const file = join(home, 'backlog.json');
   let posted = 0;
+  const counts = [];
   const writeBacklog = () => writeFileSync(file, JSON.stringify(backlog));
   const as = (s) => ['--harness', 'claude-code', '--session', s, '--agent', `claude-x:t@m:b#${s}`];
   // One step of the run, as the text names it; counts the records it printed.
@@ -63,10 +64,24 @@ try {
       it.comments ||= [];
       it.comments.push({ id: `c${++posted}`, at: T(start), author: 'agent', body: r.body });
     }
+    counts.push([out.length, `runs.mjs ${a[0]}`]);
     total += out.length;
     return out;
   };
+  // The small task's one acceptance record is the item's own recorded result
+  // with its evidence, naming the CI run and the review. It is a write to the
+  // tracker, not a record the run script prints, and it is made at every size,
+  // so the count has to carry it or it measures something else.
+  const accept = () => {
+    const it = backlog.issues.find((i) => i.id === 'A');
+    it.status = 'submitted';
+    it.delivery = { revision: 'the submitted revision', evidence: 'CI run <id>; review <id>' };
+    it.updatedAt = T(start);
+    counts.push([1, 'accept: the item\'s recorded result with its evidence']);
+    total += 1;
+  };
 
+  const which = process.argv[2] === '--steps' ? process.argv[3] : 'after';
   const clock = start;
   const realNow = Date.now;
   Date.now = () => clock;
@@ -81,16 +96,20 @@ try {
       before: [
         ['claim', '--item', 'A', '--role', 'coordinator', '--forecast', 'build=10'],
         ['event', '--event', 'ci', '--note', 'CI on the submitted branch'],
+        'accept',
         ['finish', '--item', 'F', '--result', 'pull-request'],
       ],
       after: [
         ['claim', '--item', 'A', '--role', 'coordinator', '--forecast', 'build=10'],
+        'accept',
         ['finish', '--item', 'F', '--result', 'pull-request'],
       ],
     };
-    const which = process.argv[2] === '--steps' ? process.argv[3] : 'after';
     if (!steps[which]) throw new Error(`unknown --steps ${which}: before | after`);
-    for (const a of steps[which]) step(...a, ...as('s1'));
+    for (const a of steps[which]) if (a === 'accept') accept();
+    else step(...a, ...as('s1'));
+    for (const [n, what] of counts) console.error(`${n}  ${what}`);
+    console.error(`${total}  records a small task writes — ${which}`);
   } finally {
     Date.now = realNow;
   }

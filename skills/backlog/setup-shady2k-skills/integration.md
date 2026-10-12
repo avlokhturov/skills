@@ -29,8 +29,9 @@ are the repository's installation, and each person's plugin and hooks are theirs
 
 - **Backlog adapter:** <path and export command; where the export command reads
   the store: the ref, so every read is historical by nature — the store's state
-  at a code revision is the newest snapshot published at or before it, and the
-  adapter resolves it, never the tree>
+  at a code revision is what the store recorded under that revision's own name
+  when it was cut or landed, and the adapter takes that recording, never the
+  tree and never a later snapshot that happens to name the same revision>
 - **Rules:** <paths/provenance for check.mjs with time-format.mjs beside it, check-commits.mjs, check-docs.mjs, check-present.mjs with document-format.mjs beside it, and check-product.mjs; verbatim copies or proved ports>
 - **Present documents:** <the check-present.mjs command a pull request's opening and CI run, and how CI finds the merge base; the documents themselves are in the config>
 - **Product documents:** <the check-product.mjs commands the commit hook (`--staged`) and CI (`--rev <revision>`) run>
@@ -61,7 +62,7 @@ are the repository's installation, and each person's plugin and hooks are theirs
 - **CI:** <backlog baseline selection and introduced-commit enumeration; empty
   or unreadable required ranges fail>
 - **Bulk-edit age correction:** <paired --ages-from before and --ages-through after snapshots>
-- **Tracker synchronization:** <the process that publishes and syncs the store, keeping **The tracker stays in step across machines**: started by which command, kept by which supervisor, and the proof that it runs, survives a reboot and fails loudly when its runtime is missing; what it does while it cannot reach the remote — writes continue locally and publish when it returns; the merge is per item and never by text: records that only append keep both sides, the same field changed twice takes the newer value and the overwritten value is recorded on the item, and where the field's own order cannot separate two values the order they were published on the ref decides; a claim counts only once it is on the remote; how a snapshot records the code revision it was published from, so a read at a revision resolves by the object store's own ancestry, never a clock; pushing the store's ref starts no code CI>
+- **Tracker synchronization:** <the process that publishes and syncs the store, keeping **The tracker stays in step across machines**: started by which command, kept by which supervisor, and the proof that it runs, survives a reboot and fails loudly when its runtime is missing; what it does while it cannot reach the remote — writes continue locally and publish when it returns; the merge is per item and never by text: records that only append keep both sides, the same field changed twice takes the newer value and the overwritten value is recorded on the item, and where the field's own order cannot separate two values the order they were published on the ref decides; a claim counts only once it is on the remote; the seconds within which a change is published and the timer on which the other machines take its snapshot, and the proof of both; how the store records the state of a code revision under that revision's own name when it is cut or lands, once and never moved, so a read at a revision takes that recording and is refused where there is none; pushing the store's ref starts no code CI>
 - **Static checks:** <commands>
 - **Related tests:** <how workers select changed and affected behaviour>
 - **Full stage checks:** <commands and required environment>

@@ -99,14 +99,17 @@ instead hides the problem where nothing can see it.
 
 **An adapter can read the tracker at a code revision.** The store lives
 outside the code branches, the way **State every branch shares is not versioned
-inside one** has it, so the adapter resolves the asked revision to the
-newest snapshot published at or before it, by the association a snapshot
-records for the revision it was published from, resolved by the object store's
-own ancestry and never by a clock. Where no snapshot is at or before the
-revision, the read fails loudly, like every other duty in this section, and
-never comes back as an empty backlog. It is where a baseline comes from — what
-was already wrong before this change — and the only honest source of ages once
-a bulk edit has rewritten them.
+inside one** has it, so the state of a code revision is recorded, not derived:
+when a revision is cut or lands, the store records the state as it stands then
+under that revision's own name, once, and never moves it. The read takes that
+recording and nothing else. It is never "the newest snapshot that happens to
+name this revision or one before it": a machine still on this revision keeps
+publishing from it afterwards, and that later state is not the state of this
+revision. Where no recording exists, the read fails loudly, like every other
+duty in this section, and never comes back as an empty backlog nor as a guess
+from the order of names or from a clock. It is where a baseline comes from —
+what was already wrong before this change — and the only honest source of ages
+once a bulk edit has rewritten them.
 
 **A native milestone is emitted as a label.** The rules read labels and nothing
 else, so a tracker with a milestone field of its own has the adapter add that
@@ -126,14 +129,17 @@ operation, with the text the script printed, unchanged.
 "absent", and an adapter that filters them makes a deleted issue and a finished
 one indistinguishable.
 
-**On a change the adapter publishes, after a short debounce: commit the store's
-state to its own ref and push it.** Publishing is the mechanism **The tracker
-stays in step across machines** requires, never an agent's remembering; pushing
-that ref starts no code CI.
+**On a change the adapter publishes: commit the store's state to its own ref
+and push it, so that the change is on the remote within seconds of it, never
+when a branch lands and never when an agent remembers.** The debounce before
+that push is seconds, not minutes, and a refused push is retried until it
+lands; pushing that ref starts no code CI.
 
 **On a short timer the adapter syncs: fetch that ref and merge the other
 machines' snapshots before anything reads the store.** A read never meets
-another machine's state unwritten.
+another machine's state unwritten. The timer is short enough that what a
+machine reads is never older than the seconds a change takes to publish, and
+both bounds are the project's to keep and setup's to prove.
 
 **The merge is per item and never by text.** Records that only append keep both
 sides. The same field changed twice takes the newer value, and the overwritten
