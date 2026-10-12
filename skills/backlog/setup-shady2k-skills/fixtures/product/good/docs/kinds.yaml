@@ -1,10 +1,15 @@
+contract: 1
 # The kinds this product keeps. Written at setup from the set's kind
 # table (the product-documents reference); the wiki reads this file alone
 # for its groups, its kind words and its next-step hints, so one change
-# of the set's vocabulary belongs here as data, never as engine code. A
-# product may rename the kinds or retune the hints in its own language;
-# the id prefixes and the stages are the set's forms' words, and a folder
-# is the set's default: a chain document keeps its kind by its id
+# of the set's vocabulary belongs here as data, never as engine code. The
+# contract: 1 on the first line is the contract version these words are
+# written against: the engine accepts the versions it knows, names a
+# version it does not support, and degrades to plain pages rather than
+# fail silently. A product may rename the kinds or retune the hints in
+# its own language; the id prefixes and the stages are the set's forms'
+# words, and a folder is the set's default: a chain document keeps its
+# kind by its id
 # wherever under docs/ it stands, so a described repository's derived
 # documents stand beside the repository they describe. The stages are
 # the set's life cycle; verify, release and operate keep their records
@@ -44,36 +49,98 @@ kinds:
     folder: docs/hypotheses
     stage: idea
     hint: a belief worth testing — its test, its metric, its threshold; the result is read onto the record when the test comes due
+    links:
+      - field: Grew from
+        targets:
+          - VIS
+          - S
+          - Q
+        backlink: Grew into
+        cardinality: many
+        required: true
   - name: Open question
     prefix: Q
     folder: docs/questions
     stage: idea
     hint: what is not known, with who can answer and what settles it; an answer, or a not-applicable with a reason, closes it
+    links:
+      - field: Concerns
+        targets:
+          - VIS
+          - PRA
+          - S
+          - H
+          - US
+          - UC
+          - FR
+          - Q
+          - P
+          - R
+        backlink: Concerned by
+        cardinality: many
+        required: true
   - name: Prototype
     prefix: P
     folder: docs/prototypes
     stage: idea
     hint: code that tests one hypothesis and is thrown away once its results are kept
+    links:
+      - field: Tests
+        targets:
+          - H
+        backlink: Tested by
+        cardinality: many
+        required: true
   - name: Result
     prefix: R
     folder: docs/results
     stage: idea
     hint: what was observed against the threshold — confirmed, refuted or unclear, and why
+    links:
+      - field: Of
+        targets:
+          - P
+        backlink: Observed in
+        cardinality: many
+        required: true
   - name: User story
     prefix: US
     folder: docs/stories
     stage: requirements
     hint: one slice of value for one role; it accepts through the use cases and requirements that grew from it
+    links:
+      - field: Grew from
+        targets:
+          - VIS
+          - H
+        backlink: Grew into
+        cardinality: many
+        required: true
   - name: Use case
     prefix: UC
     folder: docs/use-cases
     stage: requirements
     hint: one goal with its main success scenario; the product requirements it serves are written from it
+    links:
+      - field: Serves
+        targets:
+          - US
+        backlink: Served by
+        cardinality: many
+        required: true
   - name: Product requirement
     prefix: FR
     folder: docs/requirements
     stage: requirements
     hint: one thing a user can observe; the capability specs reference it by id, never restate it
+    links:
+      - field: Serves
+        targets:
+          - UC
+          - US
+        backlink: Served by
+        cardinality: many
+        required: true
   - name: Decision
     prefix: DEC
     folder: docs/decisions
@@ -109,3 +176,6 @@ kinds:
     folder: docs/practices
     stage: operate
     hint: a class of error answered once as a rule; learned as the work went on, retired with its reason
+    statuses:
+      - active
+      - retired
