@@ -47,9 +47,11 @@ code without you and report in plain words. They work with Claude Code, Codex, P
   with what they rest on and a word when work outgrows them.
 - **Any session picks the work up.** Everything agreed is in the repository, not
   in the chat, and `handoff` keeps what only the conversation knew.
-- **A thinking partner, not a questionnaire.** `brainstorming` brings its own
-  ideas and counterexamples and disagrees with reasons; a conversation may end
-  with nothing written, and nothing is left behind.
+- **A thinking partner, not a questionnaire.** In any conversation that weighs
+  a choice the agent brings its own position and argues it, looks at it from
+  several sides, names the risks and gives way only to a reason; it brings the
+  established standard or practice before anything home-grown. A conversation
+  may end with nothing written, and nothing is left behind.
 - **Fits what you already have.** Your tracker stays yours; Superpowers, Spec
   Kit or OpenSpec documents are mapped in place. Setup proves every check really
   fires before it calls the installation done.
@@ -272,12 +274,12 @@ unrelated changes, new scope or publishing anything.
 
 | skill | what it does | when to use it |
 | --- | --- | --- |
-| [brainstorming](skills/productivity/brainstorming/SKILL.md) | Thinks an idea through with you: offers its own ideas and counterexamples, disagrees with reasons. Nothing has to come out of it. | "Let's discuss", "what if", an open product decision. |
+| [brainstorming](skills/productivity/brainstorming/SKILL.md) | Thinks an idea through with you: offers its own ideas and counterexamples, argues its own position from several sides with the risks, brings the established practice first, and gives way only to a reason. Nothing has to come out of it. | "Let's discuss", "what if", an open product decision. |
 | [define-product](skills/productivity/define-product/SKILL.md) | Talks your idea through with you in plain words, one question at a time, and writes what an engineer needs to start: what you said, what you believe and how to test it, what a user does, what they must be able to see, and what is still unknown. | When you have an idea but no requirements, or before a product's first feature. |
 | [to-research](skills/productivity/to-research/SKILL.md) | Answers a question from primary sources, with citations. | When a decision depends on facts nobody has checked. |
 | [to-prototype](skills/engineering/to-prototype/SKILL.md) | Builds a small throwaway experiment that answers one design question. | When arguing takes longer than trying. |
 | [to-spec](skills/engineering/to-spec/SKILL.md) | Writes down what exactly is being built, as the user will see it, with scenarios that will be checked. | Before building something whose behaviour is not yet agreed. |
-| [to-design](skills/engineering/to-design/SKILL.md) | Decides how the system will meet an outcome before it is built: the drivers and the shape that exists, at least two options from named patterns, a recorded decision with what was rejected and assumed, review by another model, and the scenarios that become checks. | When a change introduces or changes a building block, an interface, ownership of state, a runtime interaction, an external dependency or an interface surface. |
+| [to-design](skills/engineering/to-design/SKILL.md) | Decides how the system will meet an outcome before it is built: the product goal confirmed with you first, the drivers traced to it with each constraint's source, at least two options from named patterns and established practice, the direction confirmed with you before the long write, a recorded decision with what was rejected and assumed, review by another model that checks the goal before the details, and the scenarios that become checks. | When a change introduces or changes a building block, an interface, ownership of state, a runtime interaction, an external dependency or an interface surface. |
 | [to-stages](skills/backlog/to-stages/SKILL.md) | Splits a feature into stages, checkpoints that are each checked before the next builds on them, and tasks small enough for one agent. | When planning a feature before it runs. |
 | [diagnose-bug](skills/engineering/diagnose-bug/SKILL.md) | Finds the cause of a bug with evidence: reproduces it, tests hypotheses one at a time. | When a bug did not yield to a quick look. |
 | [model-domain](skills/engineering/model-domain/SKILL.md) | Keeps the glossary — domain terms and the names of the system's own parts — and records of hard-to-reverse decisions. | When words start meaning different things, when a part had to be explained instead of named, or when a decision needs its reason kept. |
@@ -877,6 +879,32 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
 
 ## Changelog
 
+- **0.104.0** keeps a design on the right footing. A review now asks first
+  whether the design serves the work's goal and the decisions you gave, and
+  only then whether it holds together; a design that misses the goal, or whose
+  goal you never confirmed, comes back to you instead of going through rounds
+  of fixes. `to-design` confirms the goal and the chosen direction with you
+  before it writes the long record. A number carried over from a replaced
+  approach is worked out again or marked as inherited; a value put to you comes
+  with what it controls, and a list of bare values you nodded through is kept
+  as the agent's recommendation, not as your decision. Every constraint names
+  where it comes from, and a limit of the machine the agent works on is told to
+  you as a consequence, never quietly designed around. When an action is
+  blocked, the agent says what it stops and asks you to allow it, never to run
+  it yourself.
+- **0.103.0** makes the agent a sparring partner. In any conversation that
+  weighs a choice it brings its own position and argues it, walks it and yours
+  from several viewpoints, names each risk with how it would show, puts the
+  alternative in its strongest form, and gives way only to an argument it can
+  state. Before proposing anything it looks for the established standard,
+  protocol or current practice of the field's leaders, checks the proposal
+  against KISS, YAGNI, DRY and SOLID, and names what it found, since you may
+  not know it exists. A design is traced to the work's goal.
+- **0.102.0** starts work from its goal. Before work is specified or run, the
+  agent establishes what it is for and for whom, what matters most when
+  something must give, the main path and the sign it succeeded for its users,
+  finding what is already written first and bringing the rest to you as one
+  batch with recommendations.
 - **0.101.0** looks back at the work instead of asking you about it. `close-out`
   no longer puts its four questions to you after a feature: the engineer does
   not yet know how the work turned out, and they were never answered. It reads

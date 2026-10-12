@@ -13,7 +13,10 @@ metadata beside it in `agents/openai.yaml`. Every skill has an entry in the top-
 `README.md`, in its bucket's `README.md`, and in the `skills` array of
 `.claude-plugin/plugin.json`. The top-level `README.ru.md` is the Russian
 translation of `README.md`: a change to one is made to the other in the same
-commit, except the changelog, which is kept in English only. The top-level and
+commit, except the changelog, which is kept in English only. Every commit
+that changes what a skill does updates `README.md` in the same commit: the
+changelog gains the release's entry, written in what the user can now do, and
+every description of a changed skill in both READMEs is brought up to date. The top-level and
 bucket READMEs group entries into **started on the user's request** and **started when the work calls for it**. Run `claude plugin validate . --strict` and the same on
 `.claude-plugin/plugin.json` after touching a manifest.
 
