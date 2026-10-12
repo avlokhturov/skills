@@ -279,6 +279,8 @@ export function parseKinds(text, file) {
       return fail(file, at, "the contract version is given on a line again — the registry is given one contract: line");
     const raw = code(lines[i]).trim().slice("contract:".length).trim();
     const read = scalar(raw, at);
+    if (read.value !== raw)
+      return fail(file, at, `the contract version stands quoted (${JSON.stringify(raw)}): the schema reads a number, and a quote reads a word — write it bare (contract: 1)`);
     if (read.value !== "1")
       return fail(file, at, `the registry carries contract: ${JSON.stringify(raw)} — no reader of version ${JSON.stringify(read.value)} reads here: this reader reads version 1, the version the set's words are written against, and the wiki that serves this product names the version it supports and degrades to plain pages, so nothing fails silently`);
     contract = { value: 1, line: at };
@@ -753,6 +755,19 @@ export function templatesWalk(findings, words) {
     if (runInstalled.ok !== true || runInstalled.text !== installedBytes || runInstalled.source !== "the copy the project installed")
       findings.push(`the installed copy is not the one the resolution prints: got ${JSON.stringify(runInstalled.source ?? runInstalled.message)}`);
     else words.push(`templates: the installed copy at ${runInstalled.path} is the one the resolution prints when the product holds no template of its own`);
+
+    // The candidates compete: the product's own template and the
+    // installed copy both stand, and the product's own wins — the order
+    // is proved when more than one place answers.
+    const competing = product("the-competing");
+    mkdirSync(join(competing, "templates", "product"), { recursive: true });
+    writeFileSync(join(competing, "templates", "product", "user-story.md"), ownBytes);
+    mkdirSync(join(competing, ".shady2k", "templates", "product"), { recursive: true });
+    writeFileSync(join(competing, ".shady2k", "templates", "product", "user-story.md"), installedBytes);
+    const runCompeting = resolveTemplate({ prefix: "US", root: competing });
+    if (runCompeting.ok !== true || runCompeting.text !== ownBytes || runCompeting.source !== "the product's own template")
+      findings.push(`the order is not proved when the candidates compete: got ${JSON.stringify(runCompeting.source ?? runCompeting.message)}`);
+    else words.push("templates: with the product's own and the installed copy both standing, the product's own is the one the resolution prints");
 
     // Nothing installed, nothing held: the set's shipped words.
     const bare = product("the-bare");

@@ -91,7 +91,7 @@ function validate(node, schema, at, findings) {
       validate(node, branch, at, probe);
       if (probe.length === 0) return;
     }
-    findings.push(`${at}: none of the alternatives the schema reads holds`);
+    findings.push(`${at} reads ${JSON.stringify(node)}: none of the alternatives the schema reads holds`);
     return;
   }
   const type = schema.type;
@@ -128,6 +128,8 @@ function validate(node, schema, at, findings) {
       findings.push(`${at}: a word is read here, and this is not one`);
       return;
     }
+    if (schema.const !== undefined && node !== schema.const)
+      findings.push(`${at} reads ${JSON.stringify(node)}: the value read here is ${JSON.stringify(schema.const)}`);
     if (schema.pattern !== undefined && !new RegExp(schema.pattern).test(node))
       findings.push(`${at} reads ${JSON.stringify(node)}: the shape it must match is ${schema.pattern}`);
     if (schema.minLength !== undefined && node.length < schema.minLength)
@@ -181,9 +183,20 @@ test("the validator refuses what the schema refuses, by its own words", async ()
     assert.ok(findings.length > 0, `${words}: nothing was refused`);
     assert.ok(findings.some((f) => f.includes(words)), `${words}: the refusal names it:\n${findings.join("\n")}`);
   };
+  // The battery walks the constraint range the schema reads: a value the
+  // const refuses, a field nobody knows, an emptied list, a missing
+  // required field, a shape a pattern refuses, anyOf's alternatives, a
+  // type the word is not, and a word the minimum length cuts short.
   refuse("contract", (m) => { m.contract = 2; });
   refuse("heroKind", (m) => { m.kinds[0].heroKind = true; });
   refuse("statuses", (m) => { m.kinds[17].statuses = []; });
   refuse("targets", (m) => { delete m.kinds[4].links[0].targets; });
   refuse("9bad", (m) => { m.stages.push({ id: "9bad" }); });
+  refuse("often", (m) => { m.kinds[4].links[0].cardinality = "often"; });
+  refuse("field", (m) => { delete m.kinds[4].links[0].field; });
+  refuse("a word is read here", (m) => { m.kinds[17].statuses[0] = 5; });
+  refuse("true or false is read here", (m) => { m.kinds[4].links[0].required = "true"; });
+  refuse("letters", (m) => { m.kinds[4].hint = ""; });
+  refuse("the shape it must match is", (m) => { m.kinds[17].statuses[0] = "9bad"; });
+  refuse("name", (m) => { m.kinds[4].name = "9bad"; });
 });
