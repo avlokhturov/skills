@@ -211,7 +211,11 @@ end:
 - every stop: `event --event stop --reason owner` for a decision the owner must
   make, `--reason missing` for information the project did not have; every
   decision made alone: `event --event decision`; every CI run: `event --event
-  ci`; each with a one-line note;
+  ci`; each with a one-line note. A stage or feature keeps these records: its
+  acceptance is judged from them. A small task does not: its one acceptance
+  record names its CI run and its review, and what CI and the review already
+  hold is read from them, never retyped as records — the records a task needs
+  are proportionate to it;
 - when the pull request is ready or the run ends without one: `finish --item
   <feature> --result ...`, which prints this session's receipt and the feature's
   summary: the forecast against the work by phase, and how long the work
@@ -219,6 +223,13 @@ end:
   had a session whose transcript is on another machine; say so. Put the numbers
   as they are measured; a run that went badly is measured the same as one that
   went well.
+
+The records ride with the task's own landing: they are posted as comments on
+the items the work lands with, and never as a commit of their own. Where the
+store is off the branches there is nothing of a record for a branch to carry,
+and where a project keeps the store in its branches the commit check refuses a
+commit that carries only records, by the protocol's **How the work went is kept
+on the item**.
 
 Before `finish`, `gaps` names every span of the run that ended with no receipt:
 it prints the receipts it can recover from this machine and names those whose

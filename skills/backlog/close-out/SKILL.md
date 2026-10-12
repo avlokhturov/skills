@@ -137,7 +137,12 @@ around**](references/checks.md). Publish only through the project's authorized
 workflow.
 
 The records, the lessons and the closing commit land as the protocol's
-[**Sessions and landing**](references/running.md) says. A closing that
+[**Sessions and landing**](references/running.md) says. The records a task
+needs are proportionate to it: a small task is one acceptance record naming
+its CI run and its review, and what CI and the review already hold is read
+from them, never retyped as records; the claim and the span receipt stay,
+because the owner's time figures count them. The records ride with the
+work's own landing, never as a commit of their own. A closing that
 follows a merge and finds work left on the merged branch moves it there too,
 rather than opening a second request for the remainder.
 
