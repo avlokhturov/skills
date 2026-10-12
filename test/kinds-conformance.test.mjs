@@ -15,8 +15,12 @@
  *
  * The check's command is one variable, `PRODUCT_CONTRACT_CHECK`: the value
  * names the command the contract publishes, run from the engine's checkout
- * (`cd <engine checkout> && bun run contract:check` — the CI step that
- * wires this lane sets exactly that). Where no variable is set, the lane
+ * (`cd <engine checkout> && bun run contract:check`). This
+ * repository carries no configuration of its own that would set it: the
+ * wiring is one variable at the place this set's checks are run — a CI
+ * runner passes MADARCH (the engine checkout that carries the contract) or
+ * PRODUCT_CONTRACT_CHECK (the command) and the lane runs; nothing else
+ * knows about it. Where no variable is set, the lane
  * skips with its own named reason: the skip is the gate's honest "the
  * engine's contract is not on this machine", never a pass. The wiring also
  * takes `MADARCH` — an engine checkout that carries the contract — as the
@@ -35,9 +39,13 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SETUP = join(ROOT, "skills/backlog/setup-shady2k-skills");
 const EXAMPLE_PRODUCT = join(SETUP, "fixtures/product/good");
 const EXAMPLE = join(EXAMPLE_PRODUCT, "docs/kinds.yaml");
+/** One path quoted for the shell: the single quotes a POSIX shell reads as literal text. */
+function shellQuote(path) {
+  return `'${path.replace(/'/g, `'\\''`)}'`;
+}
 const CONTRACT_CHECK = process.env.PRODUCT_CONTRACT_CHECK ??
   (process.env.MADARCH && existsSync(join(process.env.MADARCH, "scripts", "check-contract.ts"))
-    ? `cd ${JSON.stringify(process.env.MADARCH)} && bun run contract:check`
+    ? `cd ${shellQuote(process.env.MADARCH)} && bun run contract:check`
     : undefined);
 const SKIPPED = CONTRACT_CHECK
   ? undefined
@@ -68,6 +76,9 @@ test("the contract's check reads the registry the set's writer rendered, too", {
   // call's own exit status is the gate's: 0 conforms, anything else is a
   // red conformance run with the check's printed words.
   assert.ok(existsSync(EXAMPLE), `the fixture registry ${EXAMPLE} stands nowhere`);
-  const run = spawnSync("sh", ["-c", `${CONTRACT_CHECK} --src ${JSON.stringify(EXAMPLE)}`], { encoding: "utf8" });
+  // The registry's path rides as the shell call's positional argument, not
+  // interpolated into the command's words, so a path with anything the
+  // shell would read reaches the check as itself.
+  const run = spawnSync("sh", ["-c", `${CONTRACT_CHECK} --src "$1"`, "sh", EXAMPLE], { encoding: "utf8" });
   assert.equal(run.status, 0, `the contract check refused the written example (exit ${run.status}):\n${run.stdout}${run.stderr}`);
 });

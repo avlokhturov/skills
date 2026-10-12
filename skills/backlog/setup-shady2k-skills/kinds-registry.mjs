@@ -132,11 +132,24 @@ const fail = (file, line, message) => ({ ok: false, line, message: `${file}:${li
  * carries `stages` (a list of {id, name?} entries) and `kinds` (a list of
  * maps with the five fields), or the first refusal ({ ok: false, line,
  * message }), already `file:`-prefixed. Nothing else is read or carried:
- * the contract's schema refuses an unknown property at any level, and so
- * does this reader, so the set's own refusal matches the contract's check.
+ the contract's
+ * schema refuses an unknown property at any level, and so does this reader.
+ * The contract's check is the word when it stands: this reader refuses what
+ * it can line by line (anchors, aliases, merge keys, custom tags, the name
+ * and prefix shapes), and the conformance run carries the refusals the set's
+ * reader cannot see.
  */
 export function parseKinds(text, file) {
   const lines = text.split("\n");
+  // What the contract's strict YAML reader refuses, refused here at the
+  // line it stands on: an anchor, an alias, a merge key or a custom tag
+  // carries meaning the line reader does not hold, so it may not pass as
+  // words.
+  for (let x = 0; x < lines.length; x++) {
+    if (lines[x].trim() === "" || lines[x].trim().startsWith("#")) continue;
+    if (/(^|\s)[&*][A-Za-z]|(^|\s)!|<<:/.test(lines[x].replace(/(^|\s)#.*$/, "")))
+      return { ok: false, line: x + 1, message: `${file}:${x + 1}: this line reads ${JSON.stringify(lines[x].trim())} — anchors (&), aliases (*), merge keys (<<:) and custom tags (!) are refused: the registry is plain words, and a line this reader cannot read is not a line to pass` };
+  }
   const code = (l) => l.replace(/(^|\s)#.*$/, "").trimEnd();
   const trim = (l) => code(l).trim();
   const skip = (i) => {
@@ -224,6 +237,8 @@ export function parseKinds(text, file) {
       if (key in map) return fail(file, field.line, `the kind carries "${key}" on it twice — each field is given once`);
       map[key] = scalar(pair[2], field.line);
       if (map[key].value === "") return fail(file, field.line, `the kind's "${key}" holds no value — ${FIELD_WORDS[key]}`);
+      if ((key === "name" || key === "stage") && !/^[A-Za-z][A-Za-z0-9 _-]*$/.test(map[key].value))
+        return fail(file, field.line, `the kind's "${key}" reads "${map[key].value}": a reader's word of letters, digits, spaces, dashes and underscores, starting with a letter`);
     }
     kinds.push(map);
   }
