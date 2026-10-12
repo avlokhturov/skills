@@ -405,11 +405,7 @@ from its log where the agent can do that.
   is read by **A gate that refuses is not routed around**.
 - An action the harness or a guard blocks — a command it refuses, a file it
   will not read, a write it will not let through — follows the protocol's
-  **A blocked action is not handed over**: what was blocked and what it stops
-  is said, an allowed way is used where the same work has one, the owner is
-  asked to allow the action and never to run it, nothing destructive is handed
-  over as a workaround, and nothing is drafted on a record that could not be
-  read.
+  **A blocked action is not handed over**.
 
 ## 6. Accept each stage
 

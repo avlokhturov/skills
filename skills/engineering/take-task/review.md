@@ -24,10 +24,9 @@ Cover both sides, with parallel reviewers where useful:
 - **The frame the work serves:** whether the change still serves the outcome
   frame the work was specified from, the decisions the owner has given and the
   product reason behind it, by
-  [`references/design.md`](references/design.md)'s **Review before building**.
-  This is asked first: a change that agrees with its own spec and does not
-  serve the frame is the finding that stops the rest, and it goes to the owner
-  as the frame to settle rather than into another round of fixes.
+  [`references/design.md`](references/design.md)'s **Review before building**,
+  which is asked before the rest. A finding here goes to the owner as the
+  frame to settle, not into another round of fixes.
 - **Behaviour and requirements:** missing or wrong behaviour, unwanted scope,
   regression risk, interactions between tasks, failure handling, and whether
   the tests would catch the important failures. A bug or short change is
