@@ -41,7 +41,9 @@
     "./skills/productivity/define-product",
     "./skills/productivity/to-research",
     "./skills/productivity/handoff",
-    "./skills/productivity/report-to-shady2k"
+    "./skills/productivity/report-to-shady2k",
+    "./skills/engineering/describe-repository",
+    "./skills/engineering/write-intended-model"
   ],
   "mcpServers": {
     "jev": {

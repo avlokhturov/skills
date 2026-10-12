@@ -513,6 +513,8 @@ export const PHASES = {
   'ship-release': 'build',
   'handle-incident': 'debug',
   'check-upkeep': 'plan',
+  'describe-repository': 'build',
+  'write-intended-model': 'build',
 };
 export const PHASE_NAMES = ['orient', 'explore', 'plan', 'build', 'debug', 'wrap', 'setup', 'unattributed'];
 const phaseOf = (skill) => (skill ? PHASES[String(skill).split(':').pop()] : undefined);

@@ -317,6 +317,10 @@ tracker is not this skill's.
 - `to-research`: a bounded investigation of primary sources, with citations.
 - `model-domain`: domain terms, the names of the system's own parts, and
   records of consequential decisions.
+- `describe-repository`: one code repository the product spans, described for
+  its wiki — model, architecture page, capabilities and decisions.
+- `write-intended-model`: write, review or update one repository's intended
+  model.
 - `to-backlog`: file new work and findings in the right lane, and keep a
   condition the owner put on work that already exists.
 - `close-out`: update current specs from accepted work, then close; keep

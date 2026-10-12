@@ -5,7 +5,7 @@
 **Plan a feature with your agent in the evening. Accept a green pull request in
 the morning.**
 
-Twenty-two skills for working as a
+Twenty-four skills for working as a
 [product engineer](https://shady2k.ru/posts/product-engineer-role/) (in
 Russian): an engineer whose work ends not at the merge but at whether users
 solved their problem. You stop driving an agent step by step. You decide what
@@ -247,7 +247,7 @@ check is installed, so is a feature whose spec is not ready.
 
 ## Skills
 
-Twenty-two skills. You can start any of them by command or just by asking in
+Twenty-four skills. You can start any of them by command or just by asking in
 words; when the agent recommends one and you agree, it starts it itself. The
 first group starts only on your request or agreement; the agent starts the
 second group on its own when the work calls for it.
@@ -283,6 +283,8 @@ unrelated changes, new scope or publishing anything.
 | [to-stages](skills/backlog/to-stages/SKILL.md) | Splits a feature into stages, checkpoints that are each checked before the next builds on them, and tasks small enough for one agent. | When planning a feature before it runs. |
 | [diagnose-bug](skills/engineering/diagnose-bug/SKILL.md) | Finds the cause of a bug with evidence: reproduces it, tests hypotheses one at a time. | When a bug did not yield to a quick look. |
 | [model-domain](skills/engineering/model-domain/SKILL.md) | Keeps the glossary — domain terms and the names of the system's own parts — and records of hard-to-reverse decisions. | When words start meaning different things, when a part had to be explained instead of named, or when a decision needs its reason kept. |
+| [describe-repository](skills/engineering/describe-repository/SKILL.md) | Describes one code repository the product spans for its wiki: the repository's intended model with its evidence, the architecture page, the capabilities found in the code as requirements and use cases marked derived from code, and the decisions found in the code or its ADRs, each linked to the model elements it shapes. | After a code repository is connected to the product, or when asked to describe one. |
+| [write-intended-model](skills/engineering/write-intended-model/SKILL.md) | Writes or checks a repository's intended model — the YAML architecture model in the repository's model folder, with its review report — elements, interfaces and relations, each evidenced at a commit and a blob, in three levels with a worked example, and renders its views. | When a repository needs its intended model written, reviewed or updated; `describe-repository` starts it. |
 | [to-backlog](skills/backlog/to-backlog/SKILL.md) | Files new work, bugs and ideas in the right place, without pushing them to the front; a filing is shared with everyone as soon as it is made. | When something new turns up in the middle of other work. |
 | [close-out](skills/backlog/close-out/SKILL.md) | Records accepted work — merges the change into the current specs, then closes its tasks — keeping the records proportionate to the task, one acceptance record for a small change, and preserves pending work where a fresh session picks it up. | After you merge a feature's pull request, or when work is stopped or handed over. |
 | [groom-backlog](skills/backlog/groom-backlog/SKILL.md) | Cleans up the queue reversibly with you: what is current, what waits, what was abandoned. | When the tracker has become a dump, and during setup. |
@@ -450,7 +452,7 @@ installation tests.
 
 #### Install
 
-Install the full package, including all twenty-two skills and Jev's MCP server
+Install the full package, including all twenty-four skills and Jev's MCP server
 (verified with `@earendil-works/pi-coding-agent` 1.0.0):
 
 ```bash
@@ -486,7 +488,7 @@ project scope and hosts without the native MCP registration API.
 
 #### Install
 
-Install all twenty-two skills as a personal package, available in every
+Install all twenty-four skills as a personal package, available in every
 project (verified with Prime Agent 0.9.8 and 0.10.0):
 
 ```bash
@@ -895,6 +897,31 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
   record naming its checks and its review instead of one record per step, with
   the records riding with the work's own landing rather than arriving as commits
   of their own.
+- **0.106.0** gives a product's wiki its repositories' descriptions and puts
+  the product's own kinds registry in the product. Two new skills,
+  `describe-repository` and `write-intended-model`, moved into the set: one
+  describes a code repository the product spans — its intended model with
+  evidence at a commit and a blob, the architecture page, the capabilities
+  found in the code as requirements and use cases marked derived from code,
+  and the decisions the code or its ADRs show — the other writes, reviews or
+  updates a repository's intended model itself, with a worked example. Both
+  name the engine they run the model check with the way the product's
+  installation names it, and still write every file where no engine is
+  installed. Setup in a product repository now writes its kinds registry,
+  `docs/kinds.yaml` under the documents, carrying `contract: 1`: every kind
+  with the wiki's word for it, its id prefix, its folder, its stage, the hint
+  a person mid-stage reads, the statuses its documents may carry, and its
+  links — each link the field's name, the prefixes of the kinds its targets
+  reach, the backlink's word, whether it is required and how many it takes
+  (one or many) — the registry the wiki reads alone for its groups, stages
+  and links. Setup never resets one that stands. Templates are overridable
+  per product: the product's own template at its `templates/product/` goes
+  first, the copies installed at `.shady2k/templates/` come next, the set's
+  shipped defaults last. The set's CI checks out and runs nothing but the
+  set — the registry conformance reads the set's own copy of the published
+  schema with the set's own code, so no repository depends on another.
+  **This release raises the setup version: projects rerun setup once.**
+
 - **0.104.0** keeps a design on the right footing. A review now asks first
   whether the design serves the work's goal and the decisions you gave, and
   only then whether it holds together; a design that misses the goal, or whose

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Write Intended Model"
+  short_description: "Write or check a repository's intended model"
+policy:
+  allow_implicit_invocation: true

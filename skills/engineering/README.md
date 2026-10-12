@@ -33,3 +33,10 @@ Also available directly to the user.
   an authorized tracked task.
 - [model-domain](./model-domain/SKILL.md): glossary, the names of the system's
   own parts, and consequential decisions.
+- [describe-repository](./describe-repository/SKILL.md): describes one code
+  repository the product spans for its wiki — the model with its evidence,
+  the architecture page, the capabilities found in the code as requirements
+  and use cases marked derived from code, and the decisions.
+- [write-intended-model](./write-intended-model/SKILL.md): writes or checks a
+  repository's intended model — the YAML architecture model in the
+  repository's model folder, with its review report and rendered views.

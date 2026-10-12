@@ -1,0 +1,5 @@
+interface:
+  display_name: "Describe Repository"
+  short_description: "Describe one connected code repository for the wiki"
+policy:
+  allow_implicit_invocation: true
