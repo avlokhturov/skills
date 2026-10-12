@@ -224,7 +224,10 @@ tracker reads it that way.
 agent, and its own mechanism keeps it so: a change is published to the shared
 remote within seconds of it — not when a branch lands, and not when an agent
 remembers — and each machine takes the others' snapshots on a timer short
-enough that what it reads is never older than that. The merge is per item and
+enough that what it reads is never older than that. While the remote cannot be
+reached the change is kept locally and published within seconds of its return,
+and a read that needs another machine's state says the remote is unreachable
+rather than presenting this machine's store as the whole state. The merge is per item and
 never by text: records that only append keep both sides, the same field changed
 twice takes the newer value with the overwritten one recorded on the item, and
 a refused push fetches, merges and pushes again. A claim and a status

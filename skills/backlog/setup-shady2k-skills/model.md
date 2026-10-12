@@ -133,7 +133,10 @@ one indistinguishable.
 and push it, so that the change is on the remote within seconds of it, never
 when a branch lands and never when an agent remembers.** The debounce before
 that push is seconds, not minutes, and a refused push is retried until it
-lands; pushing that ref starts no code CI.
+lands; pushing that ref starts no code CI. While the remote cannot be reached
+the change is kept locally and published within seconds of its return, and a
+read that needs another machine's state says the remote is unreachable rather
+than answering from this machine's store as if it were the whole state.
 
 **On a short timer the adapter syncs: fetch that ref and merge the other
 machines' snapshots before anything reads the store.** A read never meets

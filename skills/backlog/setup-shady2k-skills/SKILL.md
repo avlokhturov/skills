@@ -605,10 +605,15 @@ real commits and this repository's own checks are proved.
    record while the sync runs and see it on the remote within seconds, counted
    from the write; take away the publish's retry and see a refused push leave
    the change local rather than lost, and see it land once the remote answers;
-   stop the sync, write again, and see the write readable from the store and on
-   no other machine yet; start the sync again and see the write published; then
-   take the sync's runtime away, run the connect command in a scratch clone,
-   and see it fail loudly naming what is missing instead of connecting half. **Claim on the remote:** push
+   make the remote unreachable, write again, and see the write kept and readable
+   here while a read that needs another machine's state says the remote is
+   unreachable rather than showing this store as the whole state; make the
+   remote reachable again and see the write published within seconds of its
+   return; stop the sync, write again, and see the write readable from the store
+   and on no other machine yet; start the sync again and see the write
+   published; then take the sync's runtime away, run the connect command in a
+   scratch clone, and see it fail loudly naming what is missing instead of
+   connecting half. **Claim on the remote:** push
    a snapshot the remote's newer state refuses, and see the sync merge it per
    item and push again; then hold one proof item on two machines, claim it on
    both, and see one claim land on the remote and the other discarded and
