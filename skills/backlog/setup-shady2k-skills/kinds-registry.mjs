@@ -18,8 +18,10 @@
  * these pages.
  *
  * A product may rename the kinds or retune their hints in its own language;
- * the prefixes, folders and stages are the set's forms. Kind fields are
- * only ever added beside these, so a registry from a later version still
+ * the id prefix (and, where the documents name themselves by place, the
+ * folder) is the kind's identity, and the folder the identity does not hold
+ * is the set's default: a chain document keeps its kind by its id wherever
+ * under docs/ it stands. Kind fields are only ever added beside these, so a registry from a later version still
  * opens: fields nobody knows are carried, not refused. Setup never resets a
  * registry that stands — it verifies it and reports, and writes one only
  * where the product holds none.
@@ -219,8 +221,9 @@ function anchorOf(kind, kindsLine) {
  * The registry with the set's rules applied: { ok, findings, notes, value }.
  * A finding names the file and the line with what is wrong. A note reports a
  * choice the registry may legitimately make. Nothing is silently absent: a
- * kind the set owns that no kind of the registry carries any more — by
- * prefix, name or folder — is a finding, because the wiki's groups and
+ * kind the set owns that no kind of the registry carries any more — each
+ * kind matched by its identity field, one to one — is a finding, because
+ * the wiki's groups and
  * next-step hints lose the set's chain without anything saying so.
  */
 export function verifyRegistry(text, file) {
@@ -372,8 +375,9 @@ function main(args) {
   try {
     text = readFileSync(place.path, "utf8");
   } catch (error) {
-    if (json) console.log(JSON.stringify({ status: "findings", findings: [error.message] }));
-    else console.error(`kinds-registry: ${place.path} cannot be read: ${error.message} — the registry's own finding names the line, and a refusal to read is one about the file, so it is returned as the exit code 1`);
+    const words = `${place.path} cannot be read: ${error.message} — a registry whose file cannot be read is refused as one unreadable file, exit 1`;
+    if (json) console.log(JSON.stringify({ status: "findings", findings: [words] }));
+    else console.error(words);
     return 1;
   }
   const verified = verifyRegistry(text, REGISTRY_FILE);
