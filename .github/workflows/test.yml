@@ -1,10 +1,11 @@
 # The set's checks: the gate's selftests, the repo rules, the set's own
-# tests and — where the product-repository contract stands — the two
-# contract lanes of test/kinds-conformance.test.mjs. The engine is checked
-# out at the pin the protocol records beside the setup version; the pin
-# moves only as a deliberate change there. The conformance run must refuse
-# to pass an unchecked registry: in CI the skip is a failure, so a refusal
-# from the engine's check fails the run.
+# tests and the navigation registry's live lane — the registry the set
+# writes, read under the set's own reader. No repository depends on
+# another: nothing here checks out or runs another repository, and the
+# product-repository contract's shape is validated by the set's own code
+# against the set's own copy of the published schema. Where that copy is
+# on the branch, its check runs in this workflow; where it is not yet,
+# the conformance run skips with that named — a skip is never a pass.
 name: test
 
 on:
@@ -16,19 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: shady2k/madarch
-          ref: 853c8646f4a253c175b9cb5f4620eb771d4be56b
-          path: madarch
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: bun install
-        working-directory: madarch
       - run: npm test
-        env:
-          MADARCH: ${{ github.workspace }}/madarch

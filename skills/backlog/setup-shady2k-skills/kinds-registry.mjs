@@ -33,10 +33,11 @@
  *
  * The published example is the kind table rendered into the set's own
  * example product: `fixtures/product/good/docs/kinds.yaml`. The contract's
- * schema and its refusal cases are the engine repository's to publish; the
- * set's conformance run (`test/kinds-conformance.test.mjs`) runs this
- * example through the contract's own check command, the one the contract's
- * landing names by the `PRODUCT_CONTRACT_CHECK` variable.
+ * published schema is validated by the set's own code against the set's own
+ * copy of the schema, at the contract version the set targets — no
+ * repository depends on another, so nothing here is checked out or run from
+ * one; the conformance run (`test/kinds-conformance.test.mjs`) states what
+ * runs today and what returns with the copy.
  *
  *   node kinds-registry.mjs [--root <product folder>] [--check] [--json]
  *   node kinds-registry.mjs --selftest

@@ -42,6 +42,26 @@ is a Markdown list. The field and section names are the set's, in English,
 whatever the artifact language, so a reader can parse every project the same
 way. Templates are in `templates/product/`.
 
+**Templates are overridable per product.** The set ships a default template
+per kind (in the set, at `templates/product/`, beside the product-documents
+check; a project that installed them holds its copies at the place its
+config's document resources name); a product may hold its own template for
+the same kind at the same relative name under its own `templates/product/`,
+at the product repository's root — outside `docs/`, so the wiki never
+serves a template as a page of the documents (the product's `folder` for a
+kind is only where its documents go). The order of precedence: the
+product's own template for the kind, when one stands; the installed copy of
+the set's default, when none stands in the product; the set's shipped
+default, when nothing is installed. A kind the product renamed keeps the
+set's template name: what moves with the kind is its prefix, in the
+registry, and the identity line of its template must name that prefix. In
+the set's own repository, `node kinds-registry.mjs --template <PREFIX>
+--root <product folder>` prints the one to use and names where it came
+from; its selftest exercises the order both ways and the refused override.
+A writing skill applies the same order by reading the product's template
+first, and never restate the form's rules — a product's own wording, and
+nothing in a template, changes what `check-product.mjs` verifies.
+
 **Status is computed, never written.** Whether a question is open, a
 hypothesis tested or a requirement built follows from the links and the
 checks; a `Status:` field is refused. A document replaced by another is not

@@ -506,7 +506,9 @@ brings (`--rev`), whatever the project's scope or strength, since a
 repository with no product document passes it untouched. Its refusals name the
 file and the line. It needs no setting: the forms and where they live are
 the protocol's [product documents](references/product.md), and a project that
-writes them starts from the templates in `templates/product/`.
+writes them starts from the templates in `templates/product/` — a product's
+own template for a kind, when it holds one at its own `templates/product/`,
+goes first, by [the protocol's precedence](references/product.md).
 
 **Wiring the document gate:** build the deterministic export and the wrapper
 for the agreed evidence level, described in [documents.md](documents.md).

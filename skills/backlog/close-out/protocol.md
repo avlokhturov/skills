@@ -1,7 +1,6 @@
 # The backlog protocol
 
 Setup version: 0.46.0
-Contract pin: 853c8646f4a253c175b9cb5f4620eb771d4be56b — the product-repository contract's landing (a2f2f0ec, ce35596e, with 853c8646's fresh-clone fix) at the repository the check-out workflow names, the ref the conformance run reads the engine's own check from. The pin moves only as a deliberate change, decided here beside the setup version.
 
 These rules are the same in every project and ship with every skill that uses
 them, so they update with the set. If a project's own document restates them,
