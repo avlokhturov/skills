@@ -179,6 +179,32 @@ the pinned version of the set under `skills`, and the repositories under
 and unique among them. Fields are only ever added beside these, so an unknown
 field is ignored and a manifest from a later version still opens.
 
+**Every kind has its place.** The kinds the set owns, their id prefixes
+and where each kind's documents are written — the table the registry
+writer renders, so a product's `docs/` answers the set's words in its
+own language:
+
+| Kind | Prefix | Place | Stage |
+| --- | --- | --- | --- |
+| Vision | `VIS` | `docs/vision.md` | idea |
+| Roadmap | `ROA` | `docs/roadmap.md` | idea |
+| Milestone | `MIL` | `docs/milestones` | idea |
+| Source | `S` | `docs/sources` | idea |
+| Hypothesis | `H` | `docs/hypotheses` | idea |
+| Open question | `Q` | `docs/questions` | idea |
+| Prototype | `P` | `docs/prototypes` | idea |
+| Result | `R` | `docs/results` | idea |
+| User story | `US` | `docs/stories` | requirements |
+| Use case | `UC` | `docs/use-cases` | requirements |
+| Product requirement | `FR` | `docs/requirements` | requirements |
+| Decision | `DEC` | `docs/decisions` | design |
+| Design record | `DES` | `docs/changes` | design |
+| Architecture | `ARC` | `docs/system/architecture.md` | design |
+| Capability | `CAP` | `docs/system/capabilities` | design |
+| Change record | `CHG` | `docs/changes` | build |
+| Exploration | `EXP` | `docs/explorations` | idea |
+| Practice | `PRA` | `docs/practices` | operate |
+
 **The kinds registry is `docs/kinds.yaml`, the product's own data.** The
 set's kinds made data, for the wiki that serves the product. Its first
 line carries `contract: 1` — the version the registry's words are written
