@@ -170,6 +170,35 @@ export function renderRegistry() {
   return lines.join("\n") + "\n";
 }
 
+/** The registry the writer writes, as the contract's schema reads it: the
+ *  plain JSON the set's own validator checks against the set's copy of the
+ *  published schema, at the version the writer carries (contract: 1). */
+export function registryJson() {
+  return {
+    contract: 1,
+    stages: STAGES.map((id) => ({ id })),
+    kinds: KINDS.map((kind) => ({
+      name: kind.name,
+      prefix: kind.prefix,
+      folder: kind.folder,
+      stage: kind.stage,
+      hint: kind.hint,
+      ...(kind.statuses ? { statuses: [...kind.statuses] } : {}),
+      ...(kind.links
+        ? {
+            links: kind.links.map((link) => ({
+              field: link.field,
+              targets: [...link.targets],
+              ...(link.backlink !== undefined ? { backlink: link.backlink } : {}),
+              ...(link.cardinality !== undefined ? { cardinality: link.cardinality } : {}),
+              ...(link.required !== undefined ? { required: link.required } : {}),
+            })),
+          }
+        : {}),
+    })),
+  };
+}
+
 /** A scalar read from one line: its quoted or bare self, and the line it stood on. */
 function scalar(raw, line) {
   const quoted = /^"([^"]*)"$/.exec(raw) ?? /^'([^']*)'$/.exec(raw);
@@ -776,6 +805,7 @@ export function selftest(dir) {
   const verified = verifyRegistry(kept, "docs/kinds.yaml");
   if (!verified.ok) findings.push(...verified.findings);
   templatesWalk(findings, words);
+  if (verified.ok) words.unshift(`kinds registry: the example at ${path} is the writer's own bytes and verifies under the set's reader`);
   return verified.ok ? { ok: true, findings, words } : { ok: false, findings, words: [] };
 }
 
