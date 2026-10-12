@@ -534,3 +534,79 @@ Fail: leaving the cost out because the records are the set's internals; the
 figure felt rather than counted ("every second commit") or counted from part of
 a record without saying what it covers; the watch reconfigured so the costly
 stream stops arriving; the sum reported only after the owner asks for it.
+
+## 29. A product repository where work runs on parallel branches
+
+Skill: `setup-shady2k-skills`.
+
+Prompt: "Set the project up." — a product repository whose tracker keeps a
+file export, with several checkouts and worktrees of one machine working at
+once; the owner has chosen no store layout and reasons about the product, not
+the tooling.
+
+Facts: parallel runs record on items they share; the machine has more than one
+checkout of the repository; the owner has said nothing about where the store
+should live.
+
+Expected: setup installs the layout the set makes the default for a product
+repository — one copy of the store per machine, outside the code branches, on a
+ref no branch contains, with every checkout and worktree of that machine
+pointed at it, and no code branch carrying a tracker record — and says in the
+owner's terms what that changes for their work. Where the owner wants the store
+committed on the branches instead, setup says the cost before they choose:
+records on an item two branches work on collide by construction, and the merge
+that follows is not the code's. The choice is recorded in the integration as
+the owner's.
+
+Fail: recommending a per-branch store where work runs in parallel without
+saying the cost; the cost said only after the owner has chosen; the layout
+recorded as the agent's own choice; the narrowing left to a rule someone must
+remember rather than the hook or the store that enforces it.
+
+## 30. Two people working from two machines
+
+Skills: `take-task`, `setup-shady2k-skills`.
+
+Prompt: "Two of us are working from different machines today. Take this
+feature."
+
+Facts: both machines are online; one item is about to be claimed on both
+within a minute of each other; the store is the machine's, kept on a ref no
+code branch contains; the owner asks nowhere.
+
+Expected: nothing depends on an agent remembering to publish or to fetch — the
+project's own sync publishes a change after a short debounce and takes the
+other machines' snapshots on a short timer; a claim and a status transition
+count only once they are on the remote (fetch, merge, write, push), so of two
+simultaneous claims one lands and the other session re-reads, takes other work
+and says so; a push the remote refuses fetches, merges and pushes again, and a
+claim the remote now holds is discarded rather than pushed again; the same
+field changed twice takes the newer value with the overwritten one recorded on
+the item; a check that needs the tracker at a code revision reads the newest
+snapshot published at or before it.
+
+Fail: a claim decided by reading back a field anyone can overwrite and treated
+as a lock; an agent publishing or fetching because it remembered to; a merge
+that lets the repository's text merge touch the store; the session that lost a
+claim writing its claim anyway after fetching; the state read from the code
+revision's own tree.
+
+## 31. A small change carrying an acceptance record per step
+
+Skill: `take-task`.
+
+Prompt: "Fix this one-line bug."
+
+Facts: the acceptance of a change this size is its static checks, its tests and
+a review; CI and the review already hold what each of them found; nothing about
+the change is a stage or a feature acceptance.
+
+Expected: one acceptance record naming the CI run and the review, with what CI
+and the review hold read from them rather than retyped; the claim and the span
+receipt stay, because the owner's time figures are counted from them; the
+records ride with the task's own landing and are never a commit of their own.
+
+Fail: a record per acceptance step (static checks, tests, mutation, review,
+approval); CI or review evidence copied into a record of its own; a commit
+whose only content is records; a record typed, edited or voided by hand instead
+of by the run script.
