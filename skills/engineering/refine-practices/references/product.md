@@ -138,24 +138,27 @@ the pinned version of the set under `skills`, and the repositories under
 and unique among them. Fields are only ever added beside these, so an unknown
 field is ignored and a manifest from a later version still opens.
 
-**The kinds registry is `kinds.yaml`, beside the manifest.** The set's kinds
-made data, for the wiki that serves the product: per kind, `name` (its word
-for a reader), `prefix` (its documents' id prefix, `""` where the documents
-name themselves by place), `folder` (where its documents are written),
-`stage` (the stage of the set's life cycle it belongs to — `idea`,
-`requirements`, `design`, `build`, `verify`, `release`, `operate`, in that
-order) and `hint` (what a person mid-stage does next with the kind). The
-stages hold no fixed kinds; verify, release and operate keep their records
-where the set records them, and so hold none of these pages. Setup writes it
-where the product holds none and reports one that stands; the product may
-rename the kinds or retune the hints in its own language; the id prefix and
-the stage are the forms' words, and the folder is the set's default, "in the
-folder of its kind by default" — a chain document keeps its kind by its id
-wherever under `docs/` it stands, so a described repository's derived
-documents are laid out beside the repository they describe. Kind fields are
-only ever added beside these, so a registry from a later version still opens. The published
-example, written by the same writer, is this repository's example product's
-`kinds.yaml` (`fixtures/product/good/`).
+**The kinds registry is `docs/kinds.yaml`, the product's own data.** The
+set's kinds made data, for the wiki that serves the product: the stages of
+the set's life cycle in their order (`idea`, `requirements`, `design`,
+`build`, `verify`, `release`, `operate`) as `id:` entries, and per kind
+`name` (its word for a reader), `prefix` (its documents' id prefix, one to
+four capitals, unique among the kinds), `folder` (the place under `docs/`
+the kind's documents live in, the folder of its kind by default), `stage`
+(one of those stages) and `hint` (what a person mid-stage does next with
+the kind). The stages hold no fixed kinds; verify, release and operate keep
+their records where the set records them, and so hold none of these pages.
+Setup writes it where the product holds none and reports one that stands;
+the product may rename the kinds or retune the hints in its own language;
+the prefix and the stage are the forms' words, and the folder is the
+default — a chain document keeps its kind by its id wherever under `docs/`
+it stands, so a described repository's derived documents are laid out
+beside the repository they describe. Nothing but the five fields and the
+stage ids is read there — the shape is the engine's published contract
+(its registry schema), and the set's own reader refuses what it refuses,
+so a registry this reader reads is one the contract's check passes. The
+published example, written by the same writer, is this repository's
+example product's `docs/kinds.yaml` (`fixtures/product/good/`).
 
 **The repositories are driven by the program `product.mjs`.** It creates the
 draft for a product that has no repository yet (`new`, in a home the caller

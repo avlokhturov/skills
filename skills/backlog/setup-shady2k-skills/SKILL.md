@@ -70,7 +70,7 @@ folder is, and setup differs by the answer:
   about nowhere: they are the ones [documents.md](documents.md) gives a
   product repository. The kinds registry is written here: run
   `node kinds-registry.mjs` from this skill's directory — it writes
-  `kinds.yaml` beside the manifest where the product holds none ([the kinds
+  `docs/kinds.yaml` where the product holds none ([the kinds
   registry](references/product.md): every kind's id prefix, folder, stage and
   next-step hint) and reports one that stands, never resetting it. The
   tracker lives here, and the product-documents check is wired as the commit

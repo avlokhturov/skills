@@ -60,8 +60,8 @@ vision is `docs/vision.md`; the roadmap, charters, glossary, architecture,
 current capabilities and change records sit under `docs/` at the paths above;
 the product's own documents are `docs/` by their kinds ([the product's
 documents](references/product.md)), the code repositories the product spans
-are `repos/`, and the kinds registry — `kinds.yaml` beside the manifest — is
-written by setup ([the kinds registry](references/product.md)). A capability
+are `repos/`, and the kinds registry — `docs/kinds.yaml`, under the
+documents — is written by setup ([the kinds registry](references/product.md)). A capability
 is still the unit a spec is kept by.
 
 Specs are kept **by capability**, not by feature: a capability spec is the

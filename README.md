@@ -909,7 +909,9 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
   installation names it, and still write every file where no engine is
   installed. Setup in a product repository now writes its kinds registry,
   `docs/kinds.yaml` under the documents, carrying `contract: 1`: every kind
-  with the wiki's word for it, its id prefix, its folder, its stage, the hint
+  with the wiki's word for it, its id prefix (one to four capitals, unique
+  among the kinds — every kind of the set carries one now), its folder, its
+  stage, the hint
   a person mid-stage reads, the statuses its documents may carry, and its
   links — each link the field's name, the prefixes of the kinds its targets
   reach, the backlink's word, whether it is required and how many it takes

@@ -1,38 +1,40 @@
 #!/usr/bin/env node
 /**
  * The kinds registry — the set's map of the document kinds it owns, written
- * into a product repository as the product's own `kinds.yaml`.
+ * into a product repository at the product's `docs/kinds.yaml`, the place the
+ * engine's landed contract reads it from (the contract lane: schema
+ * schema/product-registry.schema.json, check `bun run contract:check`).
  *
- * Decision 0021 (the engine repository's product-repository record) makes
- * the kinds data a product holds: the wiki groups its pages by kind and
- * stage and reads the "what to do next" hints from this file alone, so one
- * change of the set's vocabulary is a data change here, never a change in
- * the engine's code. Per kind the registry carries the contract's own
- * fields — `name` (the kind's word for a reader), `prefix` (its documents'
- * id prefix, empty for a kind whose place, not an id, is its identity),
- * `folder` (where its documents are written), `stage` (the stage of the
- * set's life cycle it belongs to) and `hint` (the next step for a person
- * mid-stage, in the set's own wording). The stages are the set's life
- * cycle, in its own order, with no fixed kinds: verify, release and operate
- * keep their records where the set records them, so they hold none of
- * these pages.
+ * Decision 0021 makes the kinds data a product holds: the wiki groups its
+ * pages by kind and stage and reads the "what to do next" hints from this
+ * file alone, so one change of the set's vocabulary is a data change here,
+ * never a change in the engine's code. Per kind the registry carries the
+ * contract's own fields — `name` (the kind's word for a reader), `prefix`
+ * (its documents' id prefix, one to four capitals, unique among the kinds),
+ * `folder` (where the kind's documents are written, a place under docs/),
+ * `stage` (the stage of the set's life cycle it belongs to) and `hint` (the
+ * next step for a person mid-stage, in the set's own wording). The stages
+ * are the set's life cycle, in its own order, as `id:` entries, with no
+ * fixed kinds: verify, release and operate keep their records where the set
+ * records them, so they hold none of these pages.
  *
  * A product may rename the kinds or retune their hints in its own language;
- * the id prefix (and, where the documents name themselves by place, the
- * folder) is the kind's identity, and the folder the identity does not hold
- * is the set's default: a chain document keeps its kind by its id wherever
- * under docs/ it stands. Kind fields are only ever added beside these, so a registry from a later version still
- * opens: fields nobody knows are carried, not refused. Setup never resets a
+ * the id prefix and the stage are the set's forms' words, and the folder is
+ * the set's default: a chain document keeps its kind by its id wherever
+ * under docs/ it stands, so a described repository's derived documents are
+ * laid out beside the repository they describe. Fields nobody knows are
+ * refused, the way the contract's schema refuses them — the set's reader
+ * and the contract's check read the same refusals, so a registry this
+ * reader reads is a registry the check passes. Setup never resets a
  * registry that stands — it verifies it and reports, and writes one only
  * where the product holds none.
  *
  * The published example is the kind table rendered into the set's own
- * example product: `fixtures/product/good/kinds.yaml`. When the contract's
- * schema and check command land in the engine repository (the contract's
- * lane), the set's conformance run (`test/kinds-conformance.test.mjs`)
- * checks that example against them; until that landing the set's own
- * reader is what keeps the example in step, and the conformance run skips
- * with that named.
+ * example product: `fixtures/product/good/docs/kinds.yaml`. The contract's
+ * schema and its refusal cases are the engine repository's to publish; the
+ * set's conformance run (`test/kinds-conformance.test.mjs`) runs this
+ * example through the contract's own check command, the one the contract's
+ * landing names by the `PRODUCT_CONTRACT_CHECK` variable.
  *
  *   node kinds-registry.mjs [--root <product folder>] [--check] [--json]
  *   node kinds-registry.mjs --selftest
@@ -42,46 +44,45 @@
  * or prefix the set owns — each finding names the file and the line. 2:
  * misuse, or a product folder that cannot be used.
  */
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const REGISTRY_FILE = "kinds.yaml";
+export const REGISTRY_FILE = "docs/kinds.yaml";
+
 /** The set's life cycle, in its own order: the stages hold no fixed kinds — every kind names its own. */
 export const STAGES = ["idea", "requirements", "design", "build", "verify", "release", "operate"];
 
 /** The kinds the set owns, in the order a reader meets them: the side rail from the vision to the practices. */
 export const KINDS = [
-  { name: "Vision", prefix: "VISION", folder: "docs/vision.md", stage: "idea", hint: "the product's direction; when it stands, the beliefs behind it are written as hypotheses and what people said is kept as sources" },
-  { name: "Roadmap", prefix: "", folder: "docs/roadmap.md", stage: "idea", hint: "what is near and what is far, and why in that order; the current milestone's charter narrows it" },
-  { name: "Milestone", prefix: "", folder: "docs/milestones/", stage: "idea", hint: "the charter of one version — outcomes, observable criteria, exclusions and a budget — agreed with the owner before its work runs" },
-  { name: "Source", prefix: "S", folder: "docs/sources/", stage: "idea", hint: "what people actually said, kept with consent; the product's documents quote it by place" },
-  { name: "Hypothesis", prefix: "H", folder: "docs/hypotheses/", stage: "idea", hint: "a belief worth testing — its test, its metric, its threshold; the result is read onto the record when the test comes due" },
-  { name: "Open question", prefix: "Q", folder: "docs/questions/", stage: "idea", hint: "what is not known, with who can answer and what settles it; an answer, or a not-applicable with a reason, closes it" },
-  { name: "Prototype", prefix: "P", folder: "docs/prototypes/", stage: "idea", hint: "code that tests one hypothesis and is thrown away once its results are kept" },
-  { name: "Result", prefix: "R", folder: "docs/results/", stage: "idea", hint: "what was observed against the threshold — confirmed, refuted or unclear, and why" },
-  { name: "User story", prefix: "US", folder: "docs/stories/", stage: "requirements", hint: "one slice of value for one role; it accepts through the use cases and requirements that grew from it" },
-  { name: "Use case", prefix: "UC", folder: "docs/use-cases/", stage: "requirements", hint: "one goal with its main success scenario; the product requirements it serves are written from it" },
-  { name: "Product requirement", prefix: "FR", folder: "docs/requirements/", stage: "requirements", hint: "one thing a user can observe; the capability specs reference it by id, never restate it" },
-  { name: "Decision", prefix: "", folder: "docs/decisions/", stage: "design", hint: "a consequential, hard-to-reverse choice with its reason kept where a reader needs it" },
-  { name: "Design record", prefix: "", folder: "docs/changes/", stage: "design", hint: "one change's design — drivers, options traded, the recorded decision — written before code" },
-  { name: "Architecture", prefix: "", folder: "docs/system/architecture.md", stage: "design", hint: "how the system does it — the parts, their zones and the boundaries, kept with the code's shape" },
-  { name: "Capability", prefix: "", folder: "docs/system/capabilities/", stage: "design", hint: "the unit the accepted behaviour is kept by — its EARS requirements and Given/When/Then scenarios" },
-  { name: "Change record", prefix: "", folder: "docs/changes/", stage: "build", hint: "one feature's proposal against the current specs; acceptance merges it into the capabilities it touches" },
-  { name: "Exploration", prefix: "", folder: "docs/explorations/", stage: "idea", hint: "questions and observations kept where retention is asked for; it commits to nothing" },
-  { name: "Practice", prefix: "PRA", folder: "docs/practices/", stage: "operate", hint: "a class of error answered once as a rule; learned as the work went on, retired with its reason" },
-];
-
+  { name: "Vision", prefix: "VIS", folder: "docs/vision.md", stage: "idea", hint: "the product's direction; when it stands, the beliefs behind it are written as hypotheses and what people said is kept as sources" },
+  { name: "Roadmap", prefix: "ROA", folder: "docs/roadmap.md", stage: "idea", hint: "what is near and what is far, and why in that order; the current milestone's charter narrows it" },
+  { name: "Milestone", prefix: "MIL", folder: "docs/milestones", stage: "idea", hint: "the charter of one version — outcomes, observable criteria, exclusions and a budget — agreed with the owner before its work runs" },
+  { name: "Source", prefix: "S", folder: "docs/sources", stage: "idea", hint: "what people actually said, kept with consent; the product's documents quote it by place" },
+  { name: "Hypothesis", prefix: "H", folder: "docs/hypotheses", stage: "idea", hint: "a belief worth testing — its test, its metric, its threshold; the result is read onto the record when the test comes due" },
+  { name: "Open question", prefix: "Q", folder: "docs/questions", stage: "idea", hint: "what is not known, with who can answer and what settles it; an answer, or a not-applicable with a reason, closes it" },
+  { name: "Prototype", prefix: "P", folder: "docs/prototypes", stage: "idea", hint: "code that tests one hypothesis and is thrown away once its results are kept" },
+  { name: "Result", prefix: "R", folder: "docs/results", stage: "idea", hint: "what was observed against the threshold — confirmed, refuted or unclear, and why" },
+  { name: "User story", prefix: "US", folder: "docs/stories", stage: "requirements", hint: "one slice of value for one role; it accepts through the use cases and requirements that grew from it" },
+  { name: "Use case", prefix: "UC", folder: "docs/use-cases", stage: "requirements", hint: "one goal with its main success scenario; the product requirements it serves are written from it" },
+  { name: "Product requirement", prefix: "FR", folder: "docs/requirements", stage: "requirements", hint: "one thing a user can observe; the capability specs reference it by id, never restate it" },
+  { name: "Decision", prefix: "DEC", folder: "docs/decisions", stage: "design", hint: "a consequential, hard-to-reverse choice with its reason kept where a reader needs it" },
+  { name: "Design record", prefix: "DES", folder: "docs/changes", stage: "design", hint: "one change's design — drivers, options traded, the recorded decision — written before code" },
+  { name: "Architecture", prefix: "ARC", folder: "docs/system/architecture.md", stage: "design", hint: "how the system does it — the parts, their zones and the boundaries, kept with the code's shape" },
+  { name: "Capability", prefix: "CAP", folder: "docs/system/capabilities", stage: "design", hint: "the unit the accepted behaviour is kept by — its EARS requirements and Given/When/Then scenarios" },
+  { name: "Change record", prefix: "CHG", folder: "docs/changes", stage: "build", hint: "one feature's proposal against the current specs; acceptance merges it into the capabilities it touches" },
+  { name: "Exploration", prefix: "EXP", folder: "docs/explorations", stage: "idea", hint: "questions and observations kept where retention is asked for; it commits to nothing" },
+  { name: "Practice", prefix: "PRA", folder: "docs/practices", stage: "operate", hint: "a class of error answered once as a rule; learned as the work went on, retired with its reason" },
+]
 /** The fields each kind carries, as the contract names them. */
 const FIELDS = ["name", "prefix", "folder", "stage", "hint"];
 const FIELD_WORDS = {
   name: "the word the wiki shows for the kind",
-  prefix: 'the kind\'s id prefix ("" where the documents name themselves by place)',
-  folder: "the folder or file the kind is written at",
+  prefix: "the kind's id prefix, one to four capitals, unique among the kinds",
+  folder: "the place under docs/ the kind's documents live in",
   stage: "the stage of the registry's life cycle the kind belongs to",
   hint: "what a person mid-stage does next with the kind",
 };
-
 
 /** The registry rendered: the only bytes the writer writes. */
 export function renderRegistry() {
@@ -91,22 +92,20 @@ export function renderRegistry() {
     "# for its groups, its kind words and its next-step hints, so one change",
     "# of the set's vocabulary belongs here as data, never as engine code. A",
     "# product may rename the kinds or retune the hints in its own language;",
-    "# the id prefix and the stage are the set's forms' words, and a folder",
+    "# the id prefixes and the stages are the set's forms' words, and a folder",
     "# is the set's default: a chain document keeps its kind by its id",
     "# wherever under docs/ it stands, so a described repository's derived",
-    "# documents stand beside the repository they describe. Kind fields are",
-    "# only ever added beside these: name, prefix, folder, stage, hint. The",
-    "# stages are the set's life cycle; verify, release and operate keep",
-    "# their records outside the kinds.",
+    "# documents stand beside the repository they describe. The stages are",
+    "# the set's life cycle; verify, release and operate keep their records",
+    "# outside the kinds.",
     "",
-    "schemaVersion: 1",
     "stages:",
-    ...STAGES.map((stage) => `  - ${stage}`),
+    ...STAGES.map((stage) => `  - id: ${stage}`),
     "kinds:",
   ];
   for (const kind of KINDS) {
     lines.push("  - name: " + kind.name);
-    lines.push(`    prefix: "${kind.prefix}"`);
+    lines.push("    prefix: " + kind.prefix);
     lines.push("    folder: " + kind.folder);
     lines.push("    stage: " + kind.stage);
     lines.push("    hint: " + kind.hint);
@@ -129,12 +128,12 @@ function firstKindLine(value) {
 const fail = (file, line, message) => ({ ok: false, line, message: `${file}:${line}: ${message}` });
 
 /**
- * A registry text, read as the shape the example holds. Value carries
- * `schemaVersion` (a scalar), `stages` (a list of scalars) and `kinds` (a
- * list of maps, whose field values carry the line they were read on), or the
- * first refusal ({ ok: false, line, message }), already `file:`-prefixed.
- * Fields added beside the known ones are carried, not refused. A comment
- * line (# ...) or a blank line stands nowhere but between the blocks.
+ * A registry text, read as the contract's shape the set renders. Value
+ * carries `stages` (a list of {id, name?} entries) and `kinds` (a list of
+ * maps with the five fields), or the first refusal ({ ok: false, line,
+ * message }), already `file:`-prefixed. Nothing else is read or carried:
+ * the contract's schema refuses an unknown property at any level, and so
+ * does this reader, so the set's own refusal matches the contract's check.
  */
 export function parseKinds(text, file) {
   const lines = text.split("\n");
@@ -145,30 +144,52 @@ export function parseKinds(text, file) {
     return i;
   };
   let i = skip(0);
-  if (i >= lines.length) return fail(file, Math.max(lines.length, 1), "the registry is empty: it carries schemaVersion, stages and kinds");
+  if (i >= lines.length) return fail(file, Math.max(lines.length, 1), "the registry is empty: it carries the stages and the kinds");
 
-  // schemaVersion, a scalar on its own line.
-  const head = code(lines[i]).trimStart();
-  const headPair = /^schemaVersion:\s*(.*)$/.exec(head);
-  if (!headPair) return fail(file, i + 1, "the registry begins with something other than `schemaVersion:`");
-  if (headPair[1].trim() === "") return fail(file, i + 1, "`schemaVersion:` holds no version");
-  const schemaVersion = scalar(headPair[1].trim(), i + 1);
-  i = skip(i + 1);
-
-  // `stages:` and its list of scalars, each at the same leading spaces.
+  // `stages:` and its list of `{ id }` entries, each at the same leading spaces.
   if (i >= lines.length || !/^stages:\s*$/.test(trim(lines[i])))
-    return fail(file, i < lines.length ? i + 1 : Math.max(lines.length, 1), "`schemaVersion` is not followed by `stages:` with the product's life cycle under it");
+    return fail(file, i < lines.length ? i + 1 : Math.max(lines.length, 1), "the registry begins with something other than `stages:` and the life cycle's order under it");
   const stagesLine = i + 1;
   i = skip(i + 1);
   if (i >= lines.length || !/^\s*-\s/.test(lines[i]))
-    return fail(file, stagesLine, "`stages:` holds no list — each stage stands on its own line as `- <stage>`");
+    return fail(file, stagesLine, "`stages:` holds no list — each stage stands as `- id: <stage>` on its own line");
   const stages = [];
   while (i < lines.length && /^\s*-\s/.test(lines[i])) {
-    const seen = lines[i];
-    const stage = scalar(seen.trimStart().replace(/^-\s*/, "").trim(), i + 1);
-    if (stage.value === "") return fail(file, i + 1, "a stage stands with no name on it");
-    stages.push(stage);
-    i = skip(i + 1);
+    const lead = lines[i].length - lines[i].trimStart().length;
+    const first = lines[i].trimStart().replace(/^-\s*/, "").trimStart();
+    const fields = [];
+    if (first !== "") fields.push({ word: first, line: i + 1 });
+    i++;
+    while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i++;
+    while (i < lines.length && /^\s+\S/.test(lines[i]) && lines[i].length - lines[i].trimStart().length > lead) {
+      fields.push({ word: lines[i].trimStart(), line: i + 1 });
+      i++;
+      while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i++;
+    }
+    const map = Object.create(null);
+    for (const field of fields) {
+      const pair = /^([a-zA-Z-]+):\s*(.*)$/.exec(field.word);
+      if (!pair) return fail(file, field.line, `a stage entry's line is no field "id:" or name the registry names`);
+      const key = pair[1];
+      if (key === "id") {
+        const id = scalar(pair[2].trim(), field.line);
+        if (id.value === "" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(id.value))
+          return fail(file, field.line, `the stage id "${id.value}" is not a stage name: letters, digits, dashes and underscores, starting with a letter`);
+        if ("id" in map) return fail(file, field.line, `the stage carries "id" on it twice — each stage is given once`);
+        map.id = id;
+      } else if (key === "name") {
+        const name = scalar(pair[2].trim(), field.line);
+        if (name.value === "" || !/^[A-Za-z][A-Za-z0-9 _-]*$/.test(name.value))
+          return fail(file, field.line, `the stage name "${name.value}" is not a reader's word: letters, digits, spaces, dashes and underscores`);
+        if ("name" in map) return fail(file, field.line, `the stage carries "name" on it twice — each field is given once`);
+        map.name = name;
+      } else {
+        return fail(file, field.line, `a stage entry carries "${key}", which the registry's stage list does not know — a stage carries id and its optional reader name`);
+      }
+    }
+    if (!map.id) return fail(file, fields.length ? fields[0].line : i, "a stage entry carries no `id:`");
+    stages.push(map);
+    i = skip(i);
   }
 
   // `kinds:` and its list of maps, one kind per item.
@@ -189,7 +210,7 @@ export function parseKinds(text, file) {
     while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i++;
     while (i < lines.length && /^\s+\S/.test(lines[i]) && lines[i].length - lines[i].trimStart().length > lead) {
       if (!/^([a-zA-Z-]+):/.test(lines[i].trimStart()))
-        return fail(file, i + 1, `under a kind stands a line that is no kind field name and value — a kind carries ${FIELDS.join(", ")}, and a field added beside them is carried, not refused`);
+        return fail(file, i + 1, `under a kind stands a line that is no kind field name and value — a kind carries ${FIELDS.join(", ")}`);
       fields.push({ word: lines[i].trimStart(), line: i + 1 });
       i++;
       while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i++;
@@ -198,20 +219,20 @@ export function parseKinds(text, file) {
     for (const field of fields) {
       const pair = /^([a-zA-Z-]+):\s*(.*)$/.exec(field.word);
       const key = pair ? pair[1] : "";
-      if (!key) return fail(file, field.line, `a kind field has no \`name:\` on it — a kind carries ${FIELDS.join(", ")}`);
+      if (!/^([a-zA-Z-]+):\s*(.*)$/.test(field.word) || !FIELDS.slice(0, 5).includes(key))
+        return fail(file, field.line, `a kind field has no name the registry knows on it — a kind carries ${FIELDS.join(", ")}`);
       if (key in map) return fail(file, field.line, `the kind carries "${key}" on it twice — each field is given once`);
       map[key] = scalar(pair[2], field.line);
-      if (key !== "prefix" && map[key].value === "")
-        return fail(file, field.line, `the kind's "${key}" holds no value — ${FIELD_WORDS[key]}`);
+      if (map[key].value === "") return fail(file, field.line, `the kind's "${key}" holds no value — ${FIELD_WORDS[key]}`);
     }
     kinds.push(map);
   }
   if (i < lines.length && trim(lines[i]) !== "")
-    return fail(file, i + 1, "the registry holds a line outside schemaVersion, stages and kinds");
-  return { ok: true, value: { schemaVersion, stages, kinds } };
+    return fail(file, i + 1, "the registry holds a line outside stages and kinds");
+  return { ok: true, value: { stages, kinds } };
 }
 
-/** The line a kind stands on, for a finding that names one kind when no field of it is known. */
+/** Where a kind's own record stands: the kind's first field's line. */
 function anchorOf(kind, kindsLine) {
   for (const key of FIELDS) if (kind[key]) return kind[key].line;
   return kindsLine;
@@ -220,11 +241,14 @@ function anchorOf(kind, kindsLine) {
 /**
  * The registry with the set's rules applied: { ok, findings, notes, value }.
  * A finding names the file and the line with what is wrong. A note reports a
- * choice the registry may legitimately make. Nothing is silently absent: a
- * kind the set owns that no kind of the registry carries any more — each
- * kind matched by its identity field, one to one — is a finding, because
- * the wiki's groups and
- * next-step hints lose the set's chain without anything saying so.
+ * choice the registry may legitimately make. The reader alone enforces what
+ * the contract's check enforces (the prefix's shape, the folder under docs/,
+ * the stage naming the list's stage, the hint's words, each name given
+ * once), and the set's own rules beside them: one registry kind carries
+ * exactly one of the set's kinds, matched by the kind's id prefix, one to
+ * one — a kind the set owns that no kind of the registry carries any more
+ * is a finding, because the wiki's groups and next-step hints lose the
+ * set's chain without anything saying so.
  */
 export function verifyRegistry(text, file) {
   const read = parseKinds(text, file);
@@ -234,55 +258,62 @@ export function verifyRegistry(text, file) {
   const notes = [];
   const out = (line, message) => `${file}:${line}: ${message}`;
 
-  if (value.schemaVersion.value !== "1")
-    findings.push(out(value.schemaVersion.line, `schemaVersion reads "${value.schemaVersion.value}": this reader reads the contract's version 1, as the manifest reads`));
-  if (value.stages.length !== STAGES.length || value.stages.some((seen, x) => seen.value !== STAGES[x]))
-    notes.push(out(value.stages[0].line, `the registry's stages read ${value.stages.map((s) => s.value).join(", ")}: the set's life cycle is ${STAGES.join(", ")} — a renamed stage is this product's choice, and the kinds it renamed still live on the words they name`));
+  const stageNames = new Set(value.stages.map((s) => s.id.value));
+  const seenStage = new Map();
+  for (const stage of value.stages) {
+    if (seenStage.has(stage.id.value))
+      findings.push(out(stage.id.line, `the stage "${stage.id.value}" is named twice, first on line ${seenStage.get(stage.id.value)}: each stage is given once`));
+    else seenStage.set(stage.id.value, stage.id.line);
+  }
 
-  const stageNames = new Set(value.stages.map((s) => s.value));
   const seenPrefix = new Map();
   for (const kind of value.kinds) {
     for (const field of FIELDS)
-      if (!kind[field]) findings.push(out(anchorOf(kind, firstKindLine(value)), `a kind carries no "${field}" — it is ${FIELD_WORDS[field]}`));
-    if (kind.stage?.value && !stageNames.has(kind.stage.value))
-      findings.push(out(kind.stage.line, `the kind names stage "${kind.stage.value}", which the registry's own stages list does not hold`));
+      if (!kind[field])
+        findings.push(out(anchorOf(kind, firstKindLine(value)), `a kind carries no "${field}" — it is ${FIELD_WORDS[field]}`));
     if (kind.prefix?.value) {
+      if (!/^[A-Z]{1,4}$/.test(kind.prefix.value))
+        findings.push(out(kind.prefix.line, `"${kind.prefix.value}" is not an id prefix: one to four capitals (A-Z)`));
       if (seenPrefix.has(kind.prefix.value))
-        findings.push(out(kind.prefix.line, `the id prefix "${kind.prefix.value}" stands on another kind as well — each prefix names one kind`));
-      seenPrefix.set(kind.prefix.value, kind);
-      if (!/^[A-Z]([A-Z0-9-]*)$/.test(kind.prefix.value))
-        findings.push(out(kind.prefix.line, `the id prefix reads "${kind.prefix.value}": a prefix is capitals and dashes, like the set's own`));
+        findings.push(out(kind.prefix.line, `the id prefix "${kind.prefix.value}" is named twice, first on line ${seenPrefix.get(kind.prefix.value)}: each kind is given one prefix`));
+      else seenPrefix.set(kind.prefix.value, kind.prefix.line);
     }
+    if (kind.folder?.value) {
+      if (!kind.folder.value.startsWith("docs/"))
+        findings.push(out(kind.folder.line, `"${kind.folder.value}" is not a place under the documents: a kind lives inside docs/`));
+      else
+        for (const leg of kind.folder.value.slice("docs/".length).split("/")) {
+          if (leg === "..")
+            findings.push(out(kind.folder.line, `"${kind.folder.value}" climbs out of the documents: a kind lives inside docs/`));
+          if (leg === "")
+            findings.push(out(kind.folder.line, `"${kind.folder.value}" holds an empty segment: a kind lives inside docs/`));
+        }
+    }
+    if (kind.stage?.value && !stageNames.has(kind.stage.value))
+      findings.push(out(kind.stage.line, `"${kind.stage.value}" is not a stage of the list the registry names`));
+    if (kind.hint?.value && kind.hint.value.trim() === "")
+      findings.push(out(kind.hint.line, "the hint is empty: a reader stands where no word is"));
   }
 
-  // The kinds the set owns: one registry kind carries exactly one of them,
-  // matched by the field that is its identity — its id prefix, or its folder
-  // where the documents name themselves by place. A kind name or a hint the
-  // product renames is its language, and none of that is silently absent: a
-  // kind the set owns that no kind of the registry carries any more is a
-  // finding, because the wiki's groups and next-step hints lose the set's
-  // chain without anything saying so.
+  // The kinds the set owns, one registry kind each, matched by prefix.
   const taken = new Set();
   for (const owned of KINDS) {
-    const here = value.kinds.find((kind) =>
-      !taken.has(kind) &&
-      (owned.prefix !== "" ? kind.prefix !== undefined && kind.prefix.value === owned.prefix
-                           : kind.folder !== undefined && kind.folder.value === owned.folder));
+    const here = value.kinds.find((kind) => !taken.has(kind) && kind.prefix?.value === owned.prefix);
     if (!here) {
       const proof = value.kinds.length ? anchorOf(value.kinds[0], firstKindLine(value)) : firstKindLine(value);
-      findings.push(out(proof, `the set's ${owned.name} kind (${owned.prefix ? `its ids are ${owned.prefix}-…` : "its documents name themselves by place"}, written at ${owned.folder}) stands in no kind of the registry — the wiki loses the ${owned.stage} stage's word without it`));
+      findings.push(out(proof, `the set's ${owned.name} kind (its ids are ${owned.prefix}-…, written at ${owned.folder}) stands in no kind of the registry — the wiki loses the ${owned.stage} stage's word without it`));
       continue;
     }
     taken.add(here);
-    if (here.folder && here.folder.value !== owned.folder)
+    if (here.folder?.value !== owned.folder)
       notes.push(out(here.folder.line, `the ${owned.name} kind's documents collect at "${here.folder.value}": the set's default is ${owned.folder} — the product's own choice, named for what the wiki now reads the kind's place from`));
-    if (here.stage && here.stage.value !== owned.stage)
-      if (value.stages.length !== STAGES.length || value.stages.some((seen, x) => seen.value !== STAGES[x]))
+    if (here.stage?.value !== owned.stage)
+      if (value.stages.some((seen, x) => !STAGES[x] || !seen || seen.id?.value !== STAGES[x]))
         notes.push(out(here.stage.line, `the ${owned.name} kind reads stage "${here.stage.value}": the set's life cycle words its stage ${owned.stage} — a renamed stage is this product's choice, named so the stage a person reads stays the set's word in their head`));
       else
         findings.push(out(here.stage.line, `the set's ${owned.name} kind is filed under ${here.stage.value}: its stage is ${owned.stage} of the set's life cycle`));
   }
-return findings.length ? { ok: false, findings, notes } : { ok: true, findings, notes, value };
+  return findings.length ? { ok: false, findings, notes } : { ok: true, findings, notes, value };
 }
 
 /** Read one product root into { ok, root, path } or the exit-2 refusal's words. */
@@ -306,7 +337,7 @@ export function selftest(dir) {
   const kept = readFileSync(path, "utf8");
   if (kept !== renderRegistry())
     findings.push(`${path} differs from the set's rendered registry — the example the conformance run reads is the writer's own bytes; rerun the writer (node kinds-registry.mjs --root <a copy of the example product>) and commit what it changed, never a hand edit`);
-  const verified = verifyRegistry(kept, REGISTRY_FILE);
+  const verified = verifyRegistry(kept, "docs/kinds.yaml");
   if (!verified.ok) findings.push(...verified.findings);
   return verified.ok ? { ok: true, findings, words: [`kinds registry: the example at ${path} is the writer's own bytes and verifies under the set's reader`] } : { ok: false, findings, words: [] };
 }
@@ -345,7 +376,6 @@ function main(args) {
       }
       continue;
     }
-    if (arg === "--selftest") continue;
     rest.push(arg);
   }
   if (rest.length) {
@@ -365,6 +395,7 @@ function main(args) {
       else console.log(words);
       return 0;
     }
+    mkdirSync(dirname(place.path), { recursive: true });
     writeFileSync(place.path, renderRegistry());
     const words = `wrote ${place.path}: the set's kinds, each with its stage and its next-step hint; the product may rename the kinds or retune the hints, and the wiki reads this file alone`;
     if (json) console.log(JSON.stringify({ status: "wrote", path: place.path }));
@@ -380,7 +411,7 @@ function main(args) {
     else console.error(words);
     return 1;
   }
-  const verified = verifyRegistry(text, REGISTRY_FILE);
+  const verified = verifyRegistry(text, "docs/kinds.yaml");
   if (!verified.ok) {
     if (json) console.log(JSON.stringify({ status: "findings", findings: verified.findings }));
     else for (const finding of verified.findings) console.error(finding);
