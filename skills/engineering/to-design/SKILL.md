@@ -50,9 +50,9 @@ Options and choice by **Options from named patterns** and **The choice is
 recorded where it will be read again**: through `model-domain` where the
 project keeps decision records, with the views the decision turns on drawn
 or updated beside it. The options offered stand on the state of the practice,
-by the protocol's [**A proposal starts from the state of the practice**]
-(references/deciding.md), whose architectural case design.md's **Options from
-named patterns** is. What the
+by the protocol's
+[**A proposal starts from the state of the practice**](references/deciding.md),
+whose architectural case design.md's **Options from named patterns** is. What the
 owner must decide — only a quality attribute traded for another, by **The
 owner hears only the trade** — is asked here, one question at a time, with
 its mechanism; the rest is decided and recorded alone.
