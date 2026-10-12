@@ -5,9 +5,11 @@ Skills that keep the queue usable and stage acceptance honest.
 ## Started on the user's request
 
 - [setup-shady2k-skills](./setup-shady2k-skills/SKILL.md): choose/verify the
-  tracker, propose a role-aware settings profile, clean the queue and prove
-  setup; adopt existing document layouts, install templates and document gates;
-  fully recheck on every invocation without repeating settled questions.
+  tracker and keep it in one place per machine, outside the code branches and in
+  step across machines, with the background synchronization that keeps it so;
+  propose a role-aware settings profile, clean the queue and prove setup; adopt
+  existing document layouts, install templates and document gates; fully recheck
+  on every invocation without repeating settled questions.
 - [ask-shady2k](./ask-shady2k/SKILL.md): read-only orientation: picture, progress,
   ways forward and the recommended next action; or a report for the team's
   sync over a period.
@@ -20,9 +22,11 @@ Also available directly to the user.
 - [to-stages](./to-stages/SKILL.md): stages as checkpoints and tasks sized for one
   worker, parallel except for concrete prerequisites or conflicts.
 - [groom-backlog](./groom-backlog/SKILL.md): reversible cleanup, including setup bootstrap.
-- [to-backlog](./to-backlog/SKILL.md): register work and discoveries; separate filing from admission.
+- [to-backlog](./to-backlog/SKILL.md): register work and discoveries; separate filing
+  from admission, with the filing shared as soon as it is made.
 - [close-out](./close-out/SKILL.md): synchronize accepted current specifications
-  before closure and preserve pending implementation/publication results.
+  before closure, keep the records proportionate to the task and preserve
+  pending implementation/publication results.
 - [check-upkeep](./check-upkeep/SKILL.md): the recurring pass over what runs the
   product — dependencies, vulnerabilities, expiries, deprecated features,
   checks — reading and filing, never upgrading.

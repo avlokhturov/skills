@@ -258,10 +258,10 @@ In Claude Code the plugin prefixes them: `/shady2k-skills:ask-shady2k`.
 | skill | what it does | when to use it |
 | --- | --- | --- |
 | [ask-shady2k](skills/backlog/ask-shady2k/SKILL.md) | Reads the project and tells you where it stands, how far it has come, what is stuck and which ways forward exist, with one recommendation; or, for the team's daily sync, what was done over a period, what got in the way, the questions for others and whether the work fits by a date. Changes nothing. | At the start of a session, after a break, in an unfamiliar project, whenever you are unsure what comes next, before a standup. |
-| [setup-shady2k-skills](skills/backlog/setup-shady2k-skills/SKILL.md) | Connects the project's tracker, cleans its queue with you, proposes settings as one profile and proves the checks work. | Once per project, and again when a skill says the installation is out of date. |
+| [setup-shady2k-skills](skills/backlog/setup-shady2k-skills/SKILL.md) | Connects the project's tracker — one copy per machine, outside the code branches and in step with every machine — cleans its queue with you, proposes settings as one profile and proves the checks work. | Once per project, and again when a skill says the installation is out of date. |
 | [to-milestone](skills/backlog/to-milestone/SKILL.md) | Agrees what the next version delivers, what is left out and how many new bugs it can absorb. | When the current version is done, or a project has no agreed next step. |
 | [refine-practices](skills/engineering/refine-practices/SKILL.md) | Reads how the work has gone since the last retrospective and judges the active practices first: the classes of error that came back, each put to you with a recommended practice to add or retire, as one batch. | At the end of a milestone, when about five features have closed without one, or whenever you want to look back. |
-| [take-task](skills/engineering/take-task/SKILL.md) | Before you leave, gathers every decision a planned feature will need in one list; then builds the whole feature without you up to one pull request, deciding small gaps itself and stopping only for decisions that need you. | When a feature is planned and you want it built while you are away. |
+| [take-task](skills/engineering/take-task/SKILL.md) | Before you leave, gathers every decision a planned feature will need in one list; then builds the whole feature without you up to one pull request, deciding small gaps itself, stopping only for decisions that need you and telling you what the run's own overhead is costing. | When a feature is planned and you want it built while you are away. |
 | [handoff](skills/productivity/handoff/SKILL.md) | Keeps the work's state in the tracker and leaves what only this conversation knows where a fresh session will look. | Before you stop, or when a session gets too long. |
 | [ship-release](skills/engineering/ship-release/SKILL.md) | Carries merged, accepted work to its users: version by the project's scheme, release notes in what users can do, migrations with their reverse, rollout by environment with a check after each step and the rollback named before any step runs. | When a feature's pull request is merged and the project's users get it later than the merge. |
 | [handle-incident](skills/engineering/handle-incident/SKILL.md) | Restores a product failing in use, then finds the cause through `diagnose-bug`, then holds a blameless review whose actions are filed as work. | When a product runs for users and they report it is down or broken. |
@@ -283,8 +283,8 @@ unrelated changes, new scope or publishing anything.
 | [to-stages](skills/backlog/to-stages/SKILL.md) | Splits a feature into stages, checkpoints that are each checked before the next builds on them, and tasks small enough for one agent. | When planning a feature before it runs. |
 | [diagnose-bug](skills/engineering/diagnose-bug/SKILL.md) | Finds the cause of a bug with evidence: reproduces it, tests hypotheses one at a time. | When a bug did not yield to a quick look. |
 | [model-domain](skills/engineering/model-domain/SKILL.md) | Keeps the glossary — domain terms and the names of the system's own parts — and records of hard-to-reverse decisions. | When words start meaning different things, when a part had to be explained instead of named, or when a decision needs its reason kept. |
-| [to-backlog](skills/backlog/to-backlog/SKILL.md) | Files new work, bugs and ideas in the right place, without pushing them to the front. | When something new turns up in the middle of other work. |
-| [close-out](skills/backlog/close-out/SKILL.md) | Records accepted work — merges the change into the current specs, then closes its tasks — and preserves pending work where a fresh session picks it up. | After you merge a feature's pull request, or when work is stopped or handed over. |
+| [to-backlog](skills/backlog/to-backlog/SKILL.md) | Files new work, bugs and ideas in the right place, without pushing them to the front; a filing is shared with everyone as soon as it is made. | When something new turns up in the middle of other work. |
+| [close-out](skills/backlog/close-out/SKILL.md) | Records accepted work — merges the change into the current specs, then closes its tasks — keeping the records proportionate to the task, one acceptance record for a small change, and preserves pending work where a fresh session picks it up. | After you merge a feature's pull request, or when work is stopped or handed over. |
 | [groom-backlog](skills/backlog/groom-backlog/SKILL.md) | Cleans up the queue reversibly with you: what is current, what waits, what was abandoned. | When the tracker has become a dump, and during setup. |
 | [check-upkeep](skills/backlog/check-upkeep/SKILL.md) | Reads the project for what ages quietly — outdated dependencies and their breaking changes, known vulnerabilities in what it ships, expiring certificates and keys, deprecated platform features, checks failing or slowing — and files what it finds in the right lane. Finds nothing? It says so in one line. | When the project should have a look after what runs it, or on its scheduled upkeep pass. |
 
@@ -879,6 +879,22 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
 
 ## Changelog
 
+- **0.105.0** takes the tracker out of your branches and keeps every machine in
+  step. A product repository's tracker now lives in one place per machine,
+  outside the code branches, so a branch or a merge never carries it and never
+  lands another run's state on the main line. It publishes itself to the shared
+  remote within seconds of a change and picks up the other machines' state on a
+  short timer, so your agents everywhere see one picture, and a task claimed
+  twice is won once: the second claim is refused, re-read and takes other work.
+  Setup installs this layout and starts its background synchronization; a
+  project that keeps the tracker on its branches still can, now told what that
+  costs, and an existing project moves without losing a record. A run also stops
+  hiding what it costs you: when bookkeeping, repeated review rounds or a stuck
+  command take a noticeable share of a run, the agent says so unasked, with a
+  counted figure and what would cut it. And a small change writes one acceptance
+  record naming its checks and its review instead of one record per step, with
+  the records riding with the work's own landing rather than arriving as commits
+  of their own.
 - **0.104.0** keeps a design on the right footing. A review now asks first
   whether the design serves the work's goal and the decisions you gave, and
   only then whether it holds together; a design that misses the goal, or whose
