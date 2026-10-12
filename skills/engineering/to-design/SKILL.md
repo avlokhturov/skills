@@ -41,8 +41,15 @@ any option, by design.md's **Drivers before options**, each traced to the
 outcome frame the protocol's [**The outcome frame comes before the work is
 specified**](references/lifecycle.md) establishes; the inventory of
 what exists comes before any option too, by **Inventory before options**.
-What is material and unknown goes to `brainstorming`, `to-research` or
-`to-prototype`, never into a guess.
+Each constraint carries where it comes from, by **Drivers before options**:
+the frame's users and platforms, a record, the owner, a standard or a law. A
+limit of the machine, the harness or the tools this work runs on is not a
+constraint of the product: where it bites, the owner hears it as a consequence
+with the ways out. What is material and unknown goes to `brainstorming`,
+`to-research` or `to-prototype`, never into a guess. The frame and its drivers
+are put to the owner here — the frame found where it is already stated, and
+one recommendation per missing part — and what they answer is what the options
+are drawn against.
 
 ## 3. Draw the options, choose, record
 
@@ -55,14 +62,26 @@ by the protocol's
 whose architectural case design.md's **Options from named patterns** is. What the
 owner must decide — only a quality attribute traded for another, by **The
 owner hears only the trade** — is asked here, one question at a time, with
-its mechanism; the rest is decided and recorded alone.
+its mechanism; the rest is decided and recorded alone. The chosen direction
+goes to the owner for confirmation before the record is written at length and
+before the review, not after: a review of a direction they have not seen
+argues about somebody's unconfirmed frame. Where they replace the frame, the
+options are drawn again from it, and every number, limit and timeout carried
+from the replaced mechanism is re-derived from the new one or marked as
+inherited with its source, by **The choice is recorded where it will be read
+again**.
 
 ## 4. Review before building
 
-By **Review before building**. Where no other model can be reached from
-this harness, the review is self-review against the scenarios: the record
-says so, and the run's report to the owner names it among what it cannot
-judge for itself.
+By **Review before building**, whose first question is validation and not
+consistency: does the design serve the outcome frame, the decisions the owner
+has given and the product reason behind the work? A frame mismatch — or a
+frame the owner has never confirmed — is the review's blocking finding and
+goes back to them; no fix round runs before it is settled, and a round that
+would only add mechanism to an unconfirmed frame is not run. Where no other
+model can be reached from this harness, the review is self-review against the
+scenarios: the record says so, and the run's report to the owner names it
+among what it cannot judge for itself.
 
 ## 5. Hand the design to the stages
 

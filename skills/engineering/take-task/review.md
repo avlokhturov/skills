@@ -21,6 +21,13 @@ so, and follow the project's acceptance policy.
 
 Cover both sides, with parallel reviewers where useful:
 
+- **The frame the work serves:** whether the change still serves the outcome
+  frame the work was specified from, the decisions the owner has given and the
+  product reason behind it, by
+  [`references/design.md`](references/design.md)'s **Review before building**.
+  This is asked first: a change that agrees with its own spec and does not
+  serve the frame is the finding that stops the rest, and it goes to the owner
+  as the frame to settle rather than into another round of fixes.
 - **Behaviour and requirements:** missing or wrong behaviour, unwanted scope,
   regression risk, interactions between tasks, failure handling, and whether
   the tests would catch the important failures. A bug or short change is
@@ -68,10 +75,11 @@ change once, and the answer is a code review's approval with comments: what
 blocks acceptance, and the rest as comments, trusting the author with the
 minor fixes. Each finding is sorted by what it blocks. **Blocking** is wrong
 behaviour against a criterion or requirement, loss of data, access or money,
-a statement of the present this change made false, or changed behaviour no
-check watches; the rest is **not blocking**, and a style preference never
-blocks. A blocking finding is fixed within scope and then verified against
-that finding alone, on the fix's own diff: the reviewer reads nothing else
+a statement of the present this change made false, changed behaviour no
+check watches, or a change that does not serve the frame it was specified
+from; the rest is **not blocking**, and a style preference never blocks. A
+blocking finding is fixed within scope and then verified against that finding
+alone, on the fix's own diff: the reviewer reads nothing else
 into the verification, and anything else it notices is filed, not looped into
 a new round. A non-blocking finding is fixed under the run's own checks and
 goes back to the reviewer no more; where it is not fixed now, it is filed as

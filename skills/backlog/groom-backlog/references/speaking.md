@@ -249,8 +249,14 @@ that depends on the answer, or takes the choice itself, says plainly that it
 took it, and keeps it reversible. Consent is informed or it is not consent: an
 approval given on condition of not seeing what it approves — review waived, a
 record signed unread — approves nothing, and the thing stays unapproved.
-Accepting recommended values authorizes nothing destructive, no wider scope
-and no weaker acceptance. A
+Consent is informed about what it decides, a value included: one put for
+agreement carries what it controls, how it follows from the mechanism it
+belongs to, and what changes if it is wrong, by [deciding.md](deciding.md)'s
+**A design decision comes with its mechanism**. A batch of bare values agreed
+to in one line is the agent's recommendation taken, and stays the agent's in
+the record; the person's own decision is one they were given something to
+decide. Accepting recommended values authorizes nothing destructive, no wider
+scope and no weaker acceptance. A
 failure is traced to the decision that caused it, the agent's own included, as
 a post-incident review traces it; putting it on
 someone who did not make it ends the inquiry, because a failure that already

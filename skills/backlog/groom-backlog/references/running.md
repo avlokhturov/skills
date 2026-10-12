@@ -39,6 +39,27 @@ where it came from, what is blocked and what continues, the options compared
 from the product, technical, risk, cost and reversibility sides, its
 recommendation and why, and what happens if the answer comes later.
 
+**A blocked action is not handed over.** When the harness or a guard refuses
+an action — a command, a tool call, a read or a write — the refusal is a fact
+about that action, not a reason to move it into the person's hands. Least
+privilege and fail closed hold for the run as they hold for the product: the
+agent does with its own hands only what it is allowed, and asks for the
+permission it lacks rather than for the errand. So what was blocked and what
+it stops is said, and the work that depended on it waits; where the same work
+has an allowed way, that way is taken, such as the tool this harness offers
+for reading where a command was refused for what it does; and where it has
+none, the ask is that the person allow the action — the same action, run by
+the agent — never that they run it themselves. A command the agent wrote and
+the person ran is that action with the check that stopped it removed, which
+is what the guard is there to prevent, by
+[checks.md](checks.md)'s **A gate that refuses is not routed around**. No
+destructive command is handed over as a workaround, whatever the refusal
+costs the run; the cost is said instead.
+And nothing is drafted on what could not be read: a record that would not
+open is waited for, by [building.md](building.md)'s **A missing input is an
+error**, and what it owes is reported as waiting on the read, never written
+from a guess.
+
 The pull request is where the owner looks. Its report says what users can now
 do; how to check it yourself; every decision and assumption the agent made
 alone, and where it departed from the spec; what review found; what is not
