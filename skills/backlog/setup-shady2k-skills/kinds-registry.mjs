@@ -158,11 +158,12 @@ export function parseKinds(text, file) {
     const lead = /^(\s*)(-\s+)?/.exec(stripped);
     if (lead[2]) nodeStarts.push(lead[1].length + lead[2].length);
     else nodeStarts.push(lead[1].length);
-    const firstPair = /:\s+(\S.*)$/.exec(stripped.slice(Math.max(...nodeStarts)));
-    if (firstPair) nodeStarts.push(Math.max(...nodeStarts) + firstPair.index + 2);
+    const sliceFrom = Math.max(...nodeStarts);
+    const firstPair = /:(\s+)\S/.exec(stripped.slice(sliceFrom));
+    if (firstPair) nodeStarts.push(sliceFrom + firstPair.index + 1 + firstPair[1].length);
     for (const at of nodeStarts) {
       const there = stripped.slice(at);
-      const seen = /^[&*][A-Za-z0-9_-]|^!/.exec(there);
+      const seen = /^[&*][^\s]|^!/.exec(there);
       if (seen) return `${JSON.stringify(seen[0])} stands where a node of the registry begins — an anchor (&), an alias (*), or a custom tag (!) is refused: the registry is plain words`;
     }
     return undefined;
