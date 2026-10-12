@@ -4,12 +4,15 @@ The only thing the rules know. No rule mentions a tracker, a file path, a
 project or a label that is not in its own config — if one does, it has stopped
 being portable and the adapter should have absorbed the difference.
 
-An adapter reads whatever the project's tracker holds and prints this:
+An adapter reads whatever the project's store holds and prints this. The
+`source` line says what was read: the store and the place it was read from, and
+the revision the state was read at — when the read is at a code revision, that
+revision — so the state being judged says which revision it stands for:
 
 ```json
 {
   "generatedAt": "2026-09-17T19:40:00Z",
-  "source": "<tracker> <where it was read> @ <revision>",
+  "source": "<store> <where it was read> @ <revision>",
   "issues": [
     {
       "id": "PRJ-101",
@@ -94,10 +97,16 @@ improved. The gate knows it can be a lie after a bulk edit and says so itself �
 see `bulk-clusters` in the report. An adapter that tries to guess "real" work
 instead hides the problem where nothing can see it.
 
-**An adapter can read an earlier revision**, by `--at <rev>` or whatever the
-tracker offers. It is where a baseline comes from — what was already wrong before
-this change — and the only honest source of ages once a bulk edit has rewritten
-them.
+**An adapter can read the tracker at a code revision.** The store lives
+outside the code branches, the way **State every branch shares is not versioned
+inside one** has it, so the adapter resolves the asked revision to the
+newest snapshot published at or before it, by the association a snapshot
+records for the revision it was published from, resolved by the object store's
+own ancestry and never by a clock. Where no snapshot is at or before the
+revision, the read fails loudly, like every other duty in this section, and
+never comes back as an empty backlog. It is where a baseline comes from — what
+was already wrong before this change — and the only honest source of ages once
+a bulk edit has rewritten them.
 
 **A native milestone is emitted as a label.** The rules read labels and nothing
 else, so a tracker with a milestone field of its own has the adapter add that
@@ -116,3 +125,31 @@ operation, with the text the script printed, unchanged.
 **An adapter emits closed issues too.** Several checks need to tell "closed" from
 "absent", and an adapter that filters them makes a deleted issue and a finished
 one indistinguishable.
+
+**On a change the adapter publishes, after a short debounce: commit the store's
+state to its own ref and push it.** Publishing is the mechanism **The tracker
+stays in step across machines** requires, never an agent's remembering; pushing
+that ref starts no code CI.
+
+**On a short timer the adapter syncs: fetch that ref and merge the other
+machines' snapshots before anything reads the store.** A read never meets
+another machine's state unwritten.
+
+**The merge is per item and never by text.** Records that only append keep both
+sides. The same field changed twice takes the newer value, and the overwritten
+value is recorded on the item. The ordering is the merge's own for that field;
+where it cannot separate two values, the order they were published on the ref
+decides, never a machine's clock.
+
+**A refused push is not retried blind: fetch and merge, and push again.** Where
+the push is refused because the remote moved, fetch and merge first. By **The
+tracker stays in step across machines**, a claim or a status transition counts
+only once it is on the remote — fetch, merge, write,
+push — and where the remote now holds another holder, or the transition has
+already moved, the pending write is discarded, said out loud, and the session
+re-reads and takes other work.
+
+**A claim lands through the remote's own ordering: the remote accepts a push
+only on top of its own latest state, so of two simultaneous claims one lands.**
+The other session re-reads and takes other work rather than holding an item
+twice.

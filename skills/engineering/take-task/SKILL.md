@@ -251,7 +251,12 @@ capabilities. Refresh a stale requirement only after reconciling its meaning.
 
 Read execution settings from the gate config and commands from the integration.
 The feature has one coordinator on one branch, which owns every stage's
-integration and acceptance and may also implement. Claim tasks atomically, or
+integration and acceptance and may also implement. A claim counts only once it
+is on the remote,
+by the protocol's **The tracker stays in step across machines**: fetch, merge,
+write, push. Where the remote already holds another holder, the write is
+dropped, said out loud, and the session re-reads and takes other work, rather
+than reporting a claim that never landed. Claim tasks atomically, or
 have the coordinator assign them one at a time if the tracker cannot. Every
 claim names the agent that does the work in the protocol's full form (role,
 person, machine, branch, session), never the person, and never a bare role;

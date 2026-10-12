@@ -142,7 +142,10 @@ needs are proportionate to it: a small task is one acceptance record naming
 its CI run and its review, and what CI and the review already hold is read
 from them, never retyped as records; the claim and the span receipt stay,
 because the owner's time figures count them. The records ride with the
-work's own landing, never as a commit of their own. A closing that
+work's own landing, never as a commit of their own; what this section wrote
+reaches every machine by the store's own synchronization, by the protocol's
+**The tracker stays in step across machines**, and only what a branch delivers
+waits for the merge. A closing that
 follows a merge and finds work left on the merged branch moves it there too,
 rather than opening a second request for the remainder.
 

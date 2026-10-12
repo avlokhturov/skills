@@ -162,7 +162,13 @@ and a correction then writes the right record with the script. Stops,
 decisions taken alone and CI runs are records inside the span; a feature's
 close is its summary. A span that ended with
 no receipt is found by the gate and written from the transcript where it is;
-where no machine has it, its time is unknown, said so, and never zero. A figure
+where no machine has it, its time is unknown, said so, and never zero.
+The records a task needs are proportionate to it: a small task is one
+acceptance record naming its CI run and its review, and what CI and the review
+already hold is read from them, never retyped as records. What the owner's time
+figures count — the claim and the span receipt — stays at every size, and so
+does what a stage's or a feature's acceptance is judged from. Records ride with
+the work's own landing, never as a commit of their own. A figure
 of time counts the receipts; what is still open is said beside it, as
 incomplete.
 
@@ -198,13 +204,35 @@ stages the paths it changed by name and commits only those; a broad add sweeps
 another agent's work into the wrong task.
 
 **State every branch shares is not versioned inside one.** A branch carries
-what it delivers. The tracker is one state for all of them, so a snapshot of
-it committed on a branch carries every other run's states with its own, and
-landing it claims work the main line does not hold. Where the store lives in
-the repository, it is kept outside the branches (a ref no branch contains, or a
-server), or what a branch commits of it is narrowed to that branch's own writes
-by a hook, never by a rule someone has to remember. The integration says which,
-and every check that reads the tracker reads it that way.
+what it delivers. The tracker is one state for every branch, checkout and
+worktree, so a snapshot of it committed on a branch carries every other run's
+states with its own, and landing it claims work the main line does not hold.
+The store therefore lives outside the branches: one copy per machine, in the
+repository but on a ref no branch contains, or behind a server, with every
+checkout of that machine pointed at it, and no code branch carrying a tracker
+record at all. A project may keep the store in the branches instead, by what a
+branch commits of it being narrowed to its own writes by a hook and never by a
+rule someone has to remember; that is the owner's choice, and setup says its
+cost before it is taken, which is that records on an item two branches work on
+collide by construction and the merge that follows is not the code's. The
+integration says which layout this project has, and every check that reads the
+tracker reads it that way.
+
+**The tracker stays in step across machines.** One state for every person and
+agent, and its own mechanism keeps it so: a change is published to the shared
+remote after a short debounce and each machine takes the others' snapshots on a
+short timer, never an agent's remembering to publish or to fetch. The merge is
+per item and never by text: records that only append keep both sides, the same
+field changed twice takes the newer value with the overwritten one recorded on
+the item, and a refused push fetches, merges and pushes again. A claim and a
+status transition count only once they are on the remote — fetch, merge, write,
+push — and the remote accepts a push only on top of its own latest state, so of
+two simultaneous claims one lands and the other session re-reads and takes other
+work rather than holding an item twice. A check that needs the tracker at a code
+revision reads the newest snapshot published at or before it, by the association
+a snapshot records for the revision it was published from and never by a clock.
+A project whose tracker is reached as a service keeps the same duties over that
+service.
 
 **Two lanes outside the flow.**
 

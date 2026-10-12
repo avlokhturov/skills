@@ -27,22 +27,30 @@ are the repository's installation, and each person's plugin and hooks are theirs
 
 ### Checks and execution
 
-- **Backlog adapter:** <path and export command; historical export when supported>
+- **Backlog adapter:** <path and export command; where the export command reads
+  the store: the ref, so every read is historical by nature — the store's state
+  at a code revision is the newest snapshot published at or before it, and the
+  adapter resolves it, never the tree>
 - **Rules:** <paths/provenance for check.mjs with time-format.mjs beside it, check-commits.mjs, check-docs.mjs, check-present.mjs with document-format.mjs beside it, and check-product.mjs; verbatim copies or proved ports>
 - **Present documents:** <the check-present.mjs command a pull request's opening and CI run, and how CI finds the merge base; the documents themselves are in the config>
 - **Product documents:** <the check-product.mjs commands the commit hook (`--staged`) and CI (`--rev <revision>`) run>
-- **Work records:** <how the adapter exports each item's `[shady2k-time` comments raw with the tracker's comment id, time and author; the command the run script reads as `--backlog`; how a record is posted unchanged>
+- **Work records:** <how the adapter exports each item's `[shady2k-time` comments raw with the tracker's comment id, time and author; the command the run script reads as `--backlog`, which reads the store on the ref, so a record another machine published is present once it is fetched and merged; how a record is posted unchanged>
 - **Document adapter and gate:** <deterministic export from real docs/tasks; product/feature/acceptance/close commands; or "not installed yet" and the "Title" (id) of its task>
 - **Document policy:** <config source for approval and required checks; protected policy selection>
 - **Document baseline/scope:** <actual target revision, full affected capabilities and complete changed-file enumeration>
-- **Tracker layout:** <where the store lives relative to the branches (outside them, or a file each branch commits); how the tracker at a code revision and its transitions over a commit range are read; where the file stays in the branches, the hook that narrows what a commit carries of it to that branch's own writes. The agent doc's end-of-session step follows this layout, over the tracker's own generic advice>
-- **Evidence revision:** <how it is computed; the exact paths left out of it: the tracker export where it sits in the tree, change records, current specs and their catalogue, and nothing else. For each check whose policy says what it does not read, how its own revision is exported (`checkRevision` over `git ls-tree`), and what its command shows it cannot read>
+- **Tracker layout:** <for a product repository, the default **State every branch shares is not versioned inside one** states: the store lives outside the branches — one copy per machine, on a ref no code branch contains, with every checkout and worktree of that machine pointed at it, and no code branch carrying a tracker record at all; the ref's name and where the per-machine copy lives. A store a branch commits stays possible only where the owner chooses it, after this cost is said: records on an item two branches work on collide by construction — then, where the file stays in the branches, the hook that narrows what a commit carries of it to that branch's own writes. How the tracker at a code revision and its transitions over a commit range are read: from the store's snapshots on the ref, never from a code tree. The agent doc's end-of-session step follows this layout, over the tracker's own generic advice>
+- **Evidence revision:** <how it is computed; nothing in the tree stands for the tracker — the read path is the ref, so the export is left out of the revision without being named as a tree path; the exact paths left out of it: change records, current specs and their catalogue, and nothing else. For each check whose policy says what it does not read, how its own revision is exported (`checkRevision` over `git ls-tree`), and what its command shows it cannot read>
 - **Evidence level:** <records (acceptance record, trusted not verified) or protected (runner/API receipts, revision and digest binding)>
 - **Document synchronization:** <prepare delta replay, verify final tree, publish, archive and close idempotently>
 - **Enforcement boundary:** <protected required CI and tracker transition guard, or explicitly audit-only limits>
-- **Backlog gate:** <exact command, config and baseline/config-revision selection>
+- **Backlog gate:** <exact command, config and baseline/config-revision selection; the gate is given the code revision it judges (`--at <code revision>`) and refuses with exit 2 an input read for another revision or one that names none — the store is off the branches, so the declared revision is the only thing tying the report to a code state, and the adapter's export is what must fill it>
 - **JSON report:** <exact command>
-- **Commit-link input and check:** <message/range parser, tracker resolution,
+- **Commit-link input and check:** <message/range parser, tracker resolution
+  from the store on the ref — task ids resolve against the store, never a code
+  tree, and an id that is absent there fails, never supplies an empty success;
+  how the parser marks a commit that carries only records of what already
+  happened (`recordsOnly`), which the check refuses: the records ride with the
+  landing they describe and are never a commit of their own;
   normalized commits input and check-commits.mjs command>
 - **Product repository:** <for a code repository under a product's `repos/`, the product repository, as the relative path `../..`; for a product repository, "this repository holds the product, and its schema version fixes the document places">
 - **Task ids of this repository's commits resolve against:** <the tracker that holds them: the product repository's for a code repository, this repository's for a product repository, and where it is read from here>
@@ -53,6 +61,7 @@ are the repository's installation, and each person's plugin and hooks are theirs
 - **CI:** <backlog baseline selection and introduced-commit enumeration; empty
   or unreadable required ranges fail>
 - **Bulk-edit age correction:** <paired --ages-from before and --ages-through after snapshots>
+- **Tracker synchronization:** <the process that publishes and syncs the store, keeping **The tracker stays in step across machines**: started by which command, kept by which supervisor, and the proof that it runs, survives a reboot and fails loudly when its runtime is missing; what it does while it cannot reach the remote — writes continue locally and publish when it returns; the merge is per item and never by text: records that only append keep both sides, the same field changed twice takes the newer value and the overwritten value is recorded on the item, and where the field's own order cannot separate two values the order they were published on the ref decides; a claim counts only once it is on the remote; how a snapshot records the code revision it was published from, so a read at a revision resolves by the object store's own ancestry, never a clock; pushing the store's ref starts no code CI>
 - **Static checks:** <commands>
 - **Related tests:** <how workers select changed and affected behaviour>
 - **Full stage checks:** <commands and required environment>
@@ -71,8 +80,10 @@ capabilities and their substitutes.
 | operation | project implementation |
 | --- | --- |
 | create | <title, type, labels, parent, criterion> |
+| publish | <the store's own publish: on a change, after a short debounce, commit the store's state to its ref and push; the process that runs it, how it is kept and proved; pushing that ref starts no code CI> |
+| sync | <on a short timer, fetch the store's ref and merge the other machines' snapshots per item before anything reads the store; the same field changed twice takes the newer value and records the overwritten one on the item; what it does while it cannot reach the remote> |
 | link / unlink | <required-result or conflict edges on leaves, reason, release condition; provenance separate> |
-| claim | <atomic owner assignment or a serialized coordinator; not last-write-wins readback; the holder is the agent doing the work (coordinator or numbered worker), never the person by default; how a dependant of an implemented prerequisite in the same stage, or of an accepted, still-open stage of the same feature, is claimed where the tracker refuses claims on blocked issues, keeping the edge> |
+| claim | <counts only once it is on the remote: fetch, merge, write, push; where the push is refused because another session won, its write is discarded, said out loud, and the session re-reads and takes other work; atomic owner assignment or a serialized coordinator; not last-write-wins readback; the holder is the agent doing the work (coordinator or numbered worker), never the person by default; how a dependant of an implemented prerequisite in the same stage, or of an accepted, still-open stage of the same feature, is claimed where the tracker refuses claims on blocked issues, keeping the edge> |
 | release | <unfinished holds only; preserve implemented work> |
 | implemented | <record integrated revision and local evidence; coordinator only> |
 | submitted | <preserve the worker result and evidence pending integration; clear worker hold> |
@@ -86,7 +97,7 @@ capabilities and their substitutes.
 | pending integration / acceptance | <submitted/implemented leaves and their stages with recorded revisions> |
 | children | <all children in every status, including submitted, implemented and closed> |
 | search / show | <behaviour search, area listing, complete issue and comments> |
-| publish | <authorized synchronization after checks> |
+| authorized sync | <publish to the shared remote after the project's checks; distinct from the store's own publish> |
 
 When a skill reports the installation is out of date, run `setup-shady2k-skills`. An explicit
 setup invocation rechecks everything even if its recorded version matches.

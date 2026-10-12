@@ -91,12 +91,18 @@ stored in the repository is a valid choice for a small project; no product is
 required. Check it can represent the protocol, natively or through documented
 adapter metadata. Where the store lives in the repository, an existing one
 included, its layout is part of the choice, by the protocol's [**State every
-branch shares is not versioned inside one**](protocol.md): where work runs on
-more than one branch or checkout at a time, recommend keeping the store
-outside the branches, or else a hook that narrows what a commit carries of it,
-and say what each changes for the checks. Record the choice in the
-integration. Never treat an unreachable tracker as absent or replace one
-without a decision.
+branch shares is not versioned inside one**](protocol.md). For a product
+repository the store lives outside the branches by default: one copy per
+machine, on a dedicated ref no code branch contains, with every checkout and
+worktree of that machine pointed at it, and no code branch carrying a tracker
+record at all. A store a branch commits is chosen only by the owner, and setup
+says its cost first, in the owner's terms: records on an item two branches
+work on collide by construction, and the merge that follows is not the code's.
+Before recommending either, verify the tool can be pointed at such a store
+from every checkout of the machine and can export and merge there; where it
+cannot, say so and what is instead. Record the choice in the integration,
+whose field this is. Never treat an unreachable tracker as absent or replace
+one without a decision.
 
 **The setup task comes first.** Before any repository change, find or create
 the setup task in the tracker; it owns installation, cleanup and their commits
@@ -410,8 +416,13 @@ and exclusively with the dependency edges kept; where the tracker's own claim
 refuses some of it (a blocker it does not know is satisfied, for example), the
 adapter records a way that keeps both. A tracker without native `implemented` or
 `submitted` statuses gets an explicit, stored mapping, never a silent mapping
-to ready or closed. For `block-new`, verify that history can be exported and
-the historical config retrieved; otherwise agree an honest supported strength.
+to ready or closed. Where the store lives outside the branches, by the
+protocol's **The tracker stays in step across machines**, verify its reads
+before agreeing any strength: the store as it is now, and the store at a code
+revision through the store's own published snapshots, never through the code
+revision's tree. Verify that pushing the store's ref starts no code CI. For
+`block-new`, verify that history can be exported and the historical config
+retrieved; otherwise agree an honest supported strength.
 
 **Checks:** run all five shipped checks in place where they are in the
 project, or copy them unchanged (the backlog rules with
@@ -429,16 +440,24 @@ and how to fix it, readable by a contributor who has never heard of the set.
 **Connecting a clone** is one committed command, written with the wiring and
 named in the integration: it sets the hooks, filters and tracker import a clone
 needs and checks every local file a hook reads, is safe to rerun, and fails with
-what is missing instead of connecting half. Every hook this setup writes, and
+what is missing instead of connecting half. Where the store lives off the
+branches, the connect command also points the checkout at the machine's store
+and brings its background sync up, starting it where it is not running, proves
+the sync is up, and fails with what is missing rather than connecting half —
+the same rule this paragraph already states for hooks and files a hook reads.
+Every hook this setup writes, and
 every guard the project adds beside them (a privacy guard in a public
 repository, say), follows the protocol's [**A missing input is an
 error**](references/building.md): one that cannot find its patterns, config or
 runtime refuses the commit and names the connect command.
 
 **Wiring the backlog gate:** it runs in the project's local hook and in CI.
-For `block-new`, compare the working export with the last committed revision and
-its config; CI uses the PR merge-base or the previous head of a push, never a
-branch's merge-base with itself. Misuse fails loudly (exit 2); `report` relaxes
+For `block-new`, compare the working export with the store's own state at the
+base revision and that revision's config; where the store lives off the
+branches, "the last committed revision" names nothing, and the baseline is the
+store's snapshot published at or before the base revision. CI uses the PR
+merge-base or the previous head of a push, never a branch's merge-base with
+itself. Misuse fails loudly (exit 2); `report` relaxes
 only policy violations (exit 1), not a broken command.
 
 **Wiring the commit check:** it runs in commit-msg and CI. The project adapter
@@ -450,7 +469,12 @@ and fails if it unexpectedly finds none.
 document gate's range, the backlog gate's baseline), in the pre-push hook and
 in CI alike: for each pushed ref, the commits of its tip, a tag peeled to its
 commit, that no ref the remote already has reaches, never a merge-base taken
-as a baseline for a ref the remote does not have yet. A tag, or a new branch,
+as a baseline for a ref the remote does not have yet. Where the store lives
+off the branches, the code refs carry no tracker records and none is looked
+for in them: the tracker transitions over a pushed range are read from the
+store's own history over that range, by the protocol's **The tracker stays in
+step across machines**, and the code range checks are unchanged.
+A tag, or a new branch,
 on a commit the remote already holds introduces nothing: the entry point says
 "introduces no commits: nothing to check" for that ref and passes, by the
 protocol's [**A missing input is an error**](references/building.md), which
@@ -566,6 +590,23 @@ real commits and this repository's own checks are proved.
    adapter's export and see it byte for byte; edit one number in a copy, post
    it, and see the gate name it damaged; then post the run script's `void` of
    it and see the gate clear it.
+   Where the store lives off the branches, prove the layout with each broken
+   case seen caught. **Read at a revision:** through the adapter, read the
+   tracker at a code revision whose newest published snapshot is known, and
+   see the read return that snapshot and say which one; then read at a
+   revision published before any snapshot, and see the read say so instead of
+   showing an empty queue; ask for a handover naming a snapshot that is not
+   the newest one at or before the revision, and see it refused. **Publish
+   and sync:** through the adapter, write a record while the sync runs and
+   see it on the remote within seconds; stop the sync, write again, and see
+   the write readable from the store and on no other machine yet; start the
+   sync again and see the write published; then take the sync's runtime away,
+   run the connect command in a scratch clone, and see it fail loudly naming
+   what is missing instead of connecting half. **Claim on the remote:** push
+   a snapshot the remote's newer state refuses, and see the sync merge it per
+   item and push again; then hold one proof item on two machines, claim it on
+   both, and see one claim land on the remote and the other discarded and
+   said, with the session taking other work.
    Where the project kept run records on a machine before (a state directory
    of the set's), they are this machine's only: say so to the owner once, and
    leave them; nothing reads them now.
@@ -707,3 +748,12 @@ a rerun redoes only what the new setup version needs plus the proofs.
 An update reconciles config, adapter statuses, commands, hooks and documents
 like any other run. Keep earlier answers; put new settings into the recommended
 profile instead of restarting an interview.
+
+An update that brings the store out of the branches tells the owner the move
+is coming and why, in their terms, and how it is done without losing a record:
+snapshot the old state first; start the store; take what is written during the
+move from both the old place and the store and reconcile it; settle or carry
+work in flight; and remove the old export from the branches only after a proof
+shows the store holds every record it held, naming any it does not. The agent
+doc's end-of-session step follows the layout the integration records, over the
+tracker's own generic advice.

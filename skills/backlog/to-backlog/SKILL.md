@@ -92,8 +92,11 @@ Create it with the tracker's operations and run the gate. Done when the gate is
 clean; fix a new error with its own `fix` line. A `finding-budget` error means
 step 3 was skipped: satisfy it with step 3's decision, never around it (the
 protocol's [**A gate that refuses is not routed around**](references/checks.md)).
-Then publish by the protocol's [**Sessions and landing**](references/running.md):
-the record waits for the session's one merge. Report "Title" (id) with its
+Then publish by the protocol's [**Sessions and landing**](references/running.md).
+What the filing wrote is in the tracker's store, which no branch carries, so it
+reaches every machine by the store's own synchronization, by the protocol's
+**The tracker stays in step across machines**; only what a branch delivers
+waits for the session's one merge. Report "Title" (id) with its
 lane, read back from the tracker as in the ledger of [**End with the next
 step**](references/speaking.md), and, for a finding, the budget after it:
 "finding 4 of 5". A finding held for the owner's
