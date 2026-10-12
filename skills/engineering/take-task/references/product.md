@@ -29,6 +29,22 @@ requirement can be followed up to a person's words:
 | Prototype | `P-001` | the code that tests a hypothesis, and how to run it | hypotheses |
 | Result | `R-001` | a prototype's prediction, what was observed, the verdict | its prototype |
 
+**The links are declared, never hard-coded.** Each link lives in the
+registry, under the kind whose documents carry the field: the field's
+name, the prefixes of the kinds its targets name, the word its backlink
+shows on the target's page, whether the field is one or many, and whether
+a document of the kind has to carry it. The set's own declarations are
+the table's: a hypothesis grows from the vision, a source or a question;
+a user story grows from the vision or a hypothesis; a use case serves
+user stories; a product requirement serves use cases and user stories;
+an open question concerns the vision or any chain kind; a prototype
+tests hypotheses; a result is of prototypes. The wiki draws links and
+backlinks from these declarations alone, so a kind a product adds to its
+registry — with its links — joins the chain with no code change on either
+side. A link whose target names no kind of the registry, and a missing
+required link, are findings — the structural rules, the registry's; what
+the documents say is the check's word alone.
+
 **A product document's form.** A Markdown file under `docs/`, in the folder
 of its kind by default (`docs/sources/`, `docs/hypotheses/`, `docs/stories/`,
 `docs/use-cases/`, `docs/requirements/`, `docs/questions/`,
@@ -42,25 +58,30 @@ is a Markdown list. The field and section names are the set's, in English,
 whatever the artifact language, so a reader can parse every project the same
 way. Templates are in `templates/product/`.
 
-**Templates are overridable per product.** The set ships a default template
-per kind (in the set, at `templates/product/`, beside the product-documents
-check; a project that installed them holds its copies at the place its
-config's document resources name); a product may hold its own template for
-the same kind at the same relative name under its own `templates/product/`,
-at the product repository's root — outside `docs/`, so the wiki never
-serves a template as a page of the documents (the product's `folder` for a
-kind is only where its documents go). The order of precedence: the
-product's own template for the kind, when one stands; the installed copy of
-the set's default, when none stands in the product; the set's shipped
-default, when nothing is installed. A kind the product renamed keeps the
-set's template name: what moves with the kind is its prefix, in the
-registry, and the identity line of its template must name that prefix. In
-the set's own repository, `node kinds-registry.mjs --template <PREFIX>
---root <product folder>` prints the one to use and names where it came
-from; its selftest exercises the order both ways and the refused override.
-A writing skill applies the same order by reading the product's template
-first, and never restate the form's rules — a product's own wording, and
-nothing in a template, changes what `check-product.mjs` verifies.
+**Templates are overridable per product.** The set ships a default
+template per kind (in the set, at `templates/product/`, beside the
+product-documents check; a practice record's is `templates/practice.md`);
+a project that installed them holds its copies under `.shady2k/templates/`
+at its root, at the same relative names; a product may hold its own
+template for the kind at the same relative name under its own `templates/`
+at the product repository's root — a kind's document template under
+`templates/product/`, the practice record's at `templates/practice.md` —
+outside `docs/`, so the wiki never serves a template as a page of the
+documents (the product's `folder` for a kind is only where its documents
+go). The order of precedence: the product's own template for the kind,
+when one stands; the project's installed copy, when none stands in the
+product; the set's shipped default, when nothing is installed. A kind the
+product renamed keeps the set's template name: what moves with the kind
+is its prefix, in the registry, and the identity line of its template
+must name that prefix. In the set's own repository, `node
+kinds-registry.mjs --template <PREFIX> --root <product folder>` prints
+the one to use and names where it came from (its `--json` carries the
+same); a product's own template that does not name the prefix is refused,
+with the file and the line, and nothing is fallen back from; its selftest
+exercises the order all three ways and the refused override. A writing
+skill applies the same order by reading the product's template first, and
+never restate the form's rules — a product's own wording, and nothing in
+a template, changes what `check-product.mjs` verifies.
 
 **Status is computed, never written.** Whether a question is open, a
 hypothesis tested or a requirement built follows from the links and the
@@ -159,26 +180,40 @@ and unique among them. Fields are only ever added beside these, so an unknown
 field is ignored and a manifest from a later version still opens.
 
 **The kinds registry is `docs/kinds.yaml`, the product's own data.** The
-set's kinds made data, for the wiki that serves the product: the stages of
-the set's life cycle in their order (`idea`, `requirements`, `design`,
-`build`, `verify`, `release`, `operate`) as `id:` entries, and per kind
-`name` (its word for a reader), `prefix` (its documents' id prefix, one to
-four capitals, unique among the kinds), `folder` (the place under `docs/`
-the kind's documents live in, the folder of its kind by default), `stage`
-(one of those stages) and `hint` (what a person mid-stage does next with
-the kind). The stages hold no fixed kinds; verify, release and operate keep
-their records where the set records them, and so hold none of these pages.
-Setup writes it where the product holds none and reports one that stands;
-the product may rename the kinds or retune the hints in its own language;
-the prefix and the stage are the forms' words, and the folder is the
-default — a chain document keeps its kind by its id wherever under `docs/`
-it stands, so a described repository's derived documents are laid out
-beside the repository they describe. Nothing but the five fields and the
-stage ids is read there — the shape is the engine's published contract
-(its registry schema), and the set's own reader refuses what it refuses,
-so a registry this reader reads is one the contract's check passes. The
-published example, written by the same writer, is this repository's
-example product's `docs/kinds.yaml` (`fixtures/product/good/`).
+set's kinds made data, for the wiki that serves the product. Its first
+line carries `contract: 1` — the version the registry's words are written
+against; the engine accepts the versions it knows, names a version it
+does not support and degrades to plain pages rather than fail silently.
+Then the stages of the set's life cycle in their order (`idea`,
+`requirements`, `design`, `build`, `verify`, `release`, `operate`) as
+`id:` entries, and per kind `name` (its word for a reader), `prefix` (its
+documents' id prefix, one to four capitals, unique among the kinds),
+`folder` (the place under `docs/` the kind's documents live in, the
+folder of its kind by default), `stage` (one of those stages) and `hint`
+(what a person mid-stage does next with the kind) — and, as a kind may
+declare them, its `statuses` (the words its documents may carry; the
+practice record's are `active` and `retired`, the only ones a chain
+document's check reads: everything else on a chain document is computed,
+never written) and its `links` (the declared links, above the forms at the chain). The stages hold no
+fixed kinds; verify, release and operate keep their records where the set
+records them, and so hold none of these pages. Setup writes it where the
+product holds none and reports one that stands; the product may rename
+the kinds or retune the hints in its own language; the prefix and the
+stage are the forms' words, and the folder is the default — a chain
+document keeps its kind by its id wherever under `docs/` it stands, so a
+described repository's derived documents are laid out beside the
+repository they describe. Nothing beyond these fields, the stage ids and
+the declarations is read there: the shape is the engine's published
+contract schema at that version, and the set carries its own copy of the
+published schema at the version it targets — in the set's own repository,
+`test/schemas/product-registry.schema.json` — validating what it writes
+with its own code, so no repository depends on another. The set's reader
+refuses what it refuses (the shapes, the places, the words, a target that
+names no kind's id prefix, a named version other than 1 with that
+version's name), and a registry the writer renders is one the copy
+passes. The published example, written by the same writer, is this
+repository's example product's `docs/kinds.yaml`
+(`fixtures/product/good/`).
 
 **The repositories are driven by the program `product.mjs`.** It creates the
 draft for a product that has no repository yet (`new`, in a home the caller
