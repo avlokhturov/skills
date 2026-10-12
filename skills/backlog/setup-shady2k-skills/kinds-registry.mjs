@@ -89,7 +89,10 @@ export function renderRegistry() {
     "# for its groups, its kind words and its next-step hints, so one change",
     "# of the set's vocabulary belongs here as data, never as engine code. A",
     "# product may rename the kinds or retune the hints in its own language;",
-    "# the prefixes, folders and stages are the set's forms. Kind fields are",
+    "# the id prefix and the stage are the set's forms' words, and a folder",
+    "# is the set's default: a chain document keeps its kind by its id",
+    "# wherever under docs/ it stands, so a described repository's derived",
+    "# documents stand beside the repository they describe. Kind fields are",
     "# only ever added beside these: name, prefix, folder, stage, hint. The",
     "# stages are the set's life cycle; verify, release and operate keep",
     "# their records outside the kinds.",
@@ -249,18 +252,34 @@ export function verifyRegistry(text, file) {
     }
   }
 
-  // The kinds the set owns, carried by their prefix, name or folder.
+  // The kinds the set owns: one registry kind carries exactly one of them,
+  // matched by the field that is its identity — its id prefix, or its folder
+  // where the documents name themselves by place. A kind name or a hint the
+  // product renames is its language, and none of that is silently absent: a
+  // kind the set owns that no kind of the registry carries any more is a
+  // finding, because the wiki's groups and next-step hints lose the set's
+  // chain without anything saying so.
+  const taken = new Set();
   for (const owned of KINDS) {
     const here = value.kinds.find((kind) =>
-      (owned.prefix !== "" && kind.prefix && kind.prefix.value === owned.prefix) ||
-      (kind.name && kind.name.value === owned.name) ||
-      (kind.folder && kind.folder.value === owned.folder));
+      !taken.has(kind) &&
+      (owned.prefix !== "" ? kind.prefix !== undefined && kind.prefix.value === owned.prefix
+                           : kind.folder !== undefined && kind.folder.value === owned.folder));
     if (!here) {
       const proof = value.kinds.length ? anchorOf(value.kinds[0], firstKindLine(value)) : firstKindLine(value);
       findings.push(out(proof, `the set's ${owned.name} kind (${owned.prefix ? `its ids are ${owned.prefix}-…` : "its documents name themselves by place"}, written at ${owned.folder}) stands in no kind of the registry — the wiki loses the ${owned.stage} stage's word without it`));
+      continue;
     }
+    taken.add(here);
+    if (here.folder && here.folder.value !== owned.folder)
+      notes.push(out(here.folder.line, `the ${owned.name} kind's documents collect at "${here.folder.value}": the set's default is ${owned.folder} — the product's own choice, named for what the wiki now reads the kind's place from`));
+    if (here.stage && here.stage.value !== owned.stage)
+      if (value.stages.length !== STAGES.length || value.stages.some((seen, x) => seen.value !== STAGES[x]))
+        notes.push(out(here.stage.line, `the ${owned.name} kind reads stage "${here.stage.value}": the set's life cycle words its stage ${owned.stage} — a renamed stage is this product's choice, named so the stage a person reads stays the set's word in their head`));
+      else
+        findings.push(out(here.stage.line, `the set's ${owned.name} kind is filed under ${here.stage.value}: its stage is ${owned.stage} of the set's life cycle`));
   }
-  return findings.length ? { ok: false, findings, notes } : { ok: true, findings, notes, value };
+return findings.length ? { ok: false, findings, notes } : { ok: true, findings, notes, value };
 }
 
 /** Read one product root into { ok, root, path } or the exit-2 refusal's words. */
@@ -293,7 +312,14 @@ export function selftest(dir) {
 function main(args) {
   const json = args.includes("--json");
   const check = args.includes("--check");
-  if (args.includes("--selftest")) {
+  const doSelftest = args.includes("--selftest");
+  const wrong = args.filter((arg) => !arg.startsWith("--") || !["--json", "--check", "--selftest"].includes(arg));
+  const badRoot = args.filter((arg) => arg === "--root").length;
+  if (doSelftest && (wrong.length || badRoot)) {
+    console.error("usage: node kinds-registry.mjs --selftest | [--root <product folder>] [--check] [--json]");
+    return 2;
+  }
+  if (doSelftest) {
     const dir = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "product", "good");
     const run = selftest(dir);
     for (const word of run.words) console.log(word);
@@ -331,10 +357,10 @@ function main(args) {
   }
   if (!existsSync(place.path)) {
     if (check) {
-      const words = `${place.path} stands nowhere: the product keeps no kinds registry — nothing to verify`;
+      const words = `${place.path} stands nowhere: the product keeps no kinds registry — nothing to verify; a product without one serves its plain pages, and setup writes one on its next run`;
       if (json) console.log(JSON.stringify({ status: "missing", message: words }));
-      else console.error(words);
-      return 2;
+      else console.log(words);
+      return 0;
     }
     writeFileSync(place.path, renderRegistry());
     const words = `wrote ${place.path}: the set's kinds, each with its stage and its next-step hint; the product may rename the kinds or retune the hints, and the wiki reads this file alone`;
@@ -342,7 +368,15 @@ function main(args) {
     else console.log(words);
     return 0;
   }
-  const verified = verifyRegistry(readFileSync(place.path, "utf8"), REGISTRY_FILE);
+  let text;
+  try {
+    text = readFileSync(place.path, "utf8");
+  } catch (error) {
+    if (json) console.log(JSON.stringify({ status: "findings", findings: [error.message] }));
+    else console.error(`kinds-registry: ${place.path} cannot be read: ${error.message} — the registry's own finding names the line, and a refusal to read is one about the file, so it is returned as the exit code 1`);
+    return 1;
+  }
+  const verified = verifyRegistry(text, REGISTRY_FILE);
   if (!verified.ok) {
     if (json) console.log(JSON.stringify({ status: "findings", findings: verified.findings }));
     else for (const finding of verified.findings) console.error(finding);

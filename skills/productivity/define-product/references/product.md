@@ -148,9 +148,12 @@ order) and `hint` (what a person mid-stage does next with the kind). The
 stages hold no fixed kinds; verify, release and operate keep their records
 where the set records them, and so hold none of these pages. Setup writes it
 where the product holds none and reports one that stands; the product may
-rename the kinds or retune the hints in its own language — the prefixes,
-folders and stages are the forms — and kind fields are only ever added
-beside these, so a registry from a later version still opens. The published
+rename the kinds or retune the hints in its own language; the id prefix and
+the stage are the forms' words, and the folder is the set's default, "in the
+folder of its kind by default" — a chain document keeps its kind by its id
+wherever under `docs/` it stands, so a described repository's derived
+documents are laid out beside the repository they describe. Kind fields are
+only ever added beside these, so a registry from a later version still opens. The published
 example, written by the same writer, is this repository's example product's
 `kinds.yaml` (`fixtures/product/good/`).
 

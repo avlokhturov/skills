@@ -3,7 +3,10 @@
 # for its groups, its kind words and its next-step hints, so one change
 # of the set's vocabulary belongs here as data, never as engine code. A
 # product may rename the kinds or retune the hints in its own language;
-# the prefixes, folders and stages are the set's forms. Kind fields are
+# the id prefix and the stage are the set's forms' words, and a folder
+# is the set's default: a chain document keeps its kind by its id
+# wherever under docs/ it stands, so a described repository's derived
+# documents stand beside the repository they describe. Kind fields are
 # only ever added beside these: name, prefix, folder, stage, hint. The
 # stages are the set's life cycle; verify, release and operate keep
 # their records outside the kinds.

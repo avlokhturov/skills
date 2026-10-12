@@ -46,16 +46,20 @@ repository:
 - write the review report `$MODELDIR/review.md` beside it: the claims
   table, what the code shows that no document says, the assignment table
   and the problems;
-- run the model check from `$ENGINE` and finish only on a run that exits
-  0, its views read:
+- where the engine is installed, run the model check from `$ENGINE` and
+  finish only on a run that exits 0, its views read:
 
 ```sh
 (cd "$ENGINE" && bun scripts/check-model.ts "$REPO" --views "$MODELDIR/views")
 ```
 
-The model lives in the repository's own model folder and is kept with
-that repository's history; never commit the generated `views/` under the
-model folder.
+  Where no engine is installed, describe finishes the same way with the
+  model unchecked: the report says so — the model and the review report
+  stand, the check has not run, and the check is how the engine proves a
+  written model.
+- The model lives in the repository's own model folder and is kept with
+  that repository's history; never commit the generated `views/` under the
+  model folder.
 
 ### 2. Write the architecture page
 
@@ -149,10 +153,11 @@ page. The ids let a later reader lay the record on the model's pages.
 - Run the product's document check (the set's `check-product`, installed in
   the product repository as its commit gate) on what you wrote; fix every
   refusal it names, file and line.
-- Report, one fact per line: the repository, the model's commit and its
-  check's verdict, the pages written with their paths, the capabilities and
-  decisions with their ids, and anything stale or contradictory the review
-  report lists. Leave committing to the person.
+- Report, one fact per line: the repository, the model and its check's
+  verdict (or the model standing unchecked, where no engine is installed),
+  the pages written with their paths, the capabilities and decisions with
+  their ids, and anything stale or contradictory the review report lists.
+  Leave committing to the person.
 
 ## If the repository holds no buildable shape
 
