@@ -34,6 +34,19 @@
  *      store here is this machine's only, and the command says so
  *   5  the remote refused this ref: a hosting policy, never counted with 4
  *
+ * WHY A REF OUTSIDE THE BRANCHES STARTS NO CODE CI, and how far that goes: a
+ * push event's ref is a branch or a tag. GitHub documents github.ref as "the
+ * fully-formed ref of the branch or tag that triggered the workflow run. For
+ * workflows triggered by push, this is the branch or tag ref that was pushed"
+ * and github.ref_type as "valid values are branch or tag"
+ * (https://docs.github.com/en/actions/reference/workflows-and-actions/contexts),
+ * and the push event as "Runs your workflow when you push a commit or tag"
+ * (https://docs.github.com/en/actions/reference/events-that-trigger-workflows).
+ * That is the documented behaviour, and it is an inference about a provider, not
+ * a proof: the proof is the project's own run list after the first push, read by
+ * the owner. A host that refuses a ref outside refs/heads/ and refs/tags/ is
+ * unsupported for this layout, and this mechanism says so by name (exit 5).
+ *
  * No git command here sees the project's hooks, and the project's hooks never
  * see a tracker commit: every git call runs with core.hooksPath set to an empty
  * directory. The record hooks installed in code checkouts are composed onto
@@ -133,7 +146,7 @@ function takeLock(flags, repoRoot) {
       LOCK_HELD = p;
       return () => { try { unlinkSync(p); } catch {} finally { LOCK_HELD = null; } };
     } catch (e) {
-      if (e.code !== 'EEXIST') die(1, `cannot take the store lock ${p}: ${e.message}`);
+      if (e.code !== 'EEXIST') throw new Error(`cannot take the store lock ${p}: ${e.message}`);
       let held = { pid: null, at: null };
       try { held = JSON.parse(readFileSync(p, 'utf8')); } catch {}
       const age = (() => { try { return Date.now() - statSync(p).mtimeMs; } catch { return 0; } })();
@@ -143,10 +156,10 @@ function takeLock(flags, repoRoot) {
         try { unlinkSync(p); } catch {}
         continue;
       }
-      die(1, `the store is locked by pid ${held.pid} since ${held.at} (${p}); another tracker-sync command is running, or remove the file if that process is gone`);
+      throw new Error(`the store is locked by pid ${held.pid} since ${held.at} (${p}); another tracker-sync command is running, or remove the file if that process is gone`);
     }
   }
-  die(1, `could not take the store lock ${p}`);
+  throw new Error(`could not take the store lock ${p}`);
 }
 
 // ---- git, always without the project's hooks --------------------------------
@@ -405,7 +418,25 @@ async function syncOnce({ needsRemote, push, quiet } = {}) {
   const fast = (await git(['merge-base', '--is-ancestor', head, remote.tip], { cwd: CURRENT.store })).code === 0;
   let oid;
   if (fast) {
+    // A write of ours that has not been published is never dropped to take the
+    // remote's state: it is published (which merges the remote in on a refusal)
+    // or the command says the remote is unreachable and keeps it.
+    if (await hasUncommittedState()) {
+      const res = await publishOnce({ quiet });
+      if (!res.ok) return { unreachable: true };
+      return { oid: await headOid(), pushed: true };
+    }
+    // The machine ordinals travel with the store, but which machine this one IS
+    // is local: taking the remote's file wholesale would hand this machine the
+    // other's ordinal, and two machines would then mint the same record ids.
+    const mine = (() => { try { return JSON.parse(readFileSync(join(CURRENT.store, '.tracker-sync', 'machines.json'), 'utf8')); } catch { return null; } })();
     await gitOk(['reset', '--hard', remote.tip], { cwd: CURRENT.store });
+    if (mine && mine.thisMachine) {
+      const f = join(CURRENT.store, '.tracker-sync', 'machines.json');
+      const theirs = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : { ordinals: {} };
+      if (theirs.thisMachine !== mine.thisMachine)
+        writeFileSync(f, `${JSON.stringify({ ...theirs, thisMachine: mine.thisMachine }, null, 2)}\n`);
+    }
     await recipeOk('import', {});
     oid = remote.tip;
     if (!quiet) say(`tracker-sync: took the remote's state ${remote.tip.slice(0, 12)}`);
@@ -516,8 +547,14 @@ async function conditional(kind, decl, map, item) {
       }
       const remote = await fetchRemote();
       if (!remote.ok || remote.noRef) die(4, `the ${kind} was refused and the remote could not be read: ${r.said}`);
-      before = await mergeAndCommit(remote.tip);
-      say(`${kind}: the push was refused; the remote had moved, so the merged state ${remote.tip.slice(0, 12)} is read before writing again`);
+      // The remote's accepted state is the only state a conditional write is
+      // judged against: the pending write is overwritten by it, never merged
+      // with it, because a per-field merge could let the loser win on a newer
+      // field and the protocol says one of two claims lands.
+      await writeState(await stateFrom(remote.tip));
+      await recipeOk('import', {});
+      before = remote.tip;
+      say(`${kind}: the push was refused; the remote's accepted state ${remote.tip.slice(0, 12)} replaces the pending write, and the condition is asked again`);
     }
     die(3, `${kind} lost: three pushes were refused; read again and take other work`);
   } finally { release(); }
@@ -527,6 +564,9 @@ async function recordRun({ revision, checkout, fromTree }) {
   const release = await takeLockWait(5000);
   try {
     const ck = checkout ? resolve(checkout) : CURRENT.repoRoot;
+    // The state as it stands now is the tracker's export, so the database is
+    // flushed into the state files before they are recorded.
+    await recipeOk('export', {});
     let rev = revision;
     let parts;
     if (fromTree) {
@@ -621,16 +661,10 @@ async function connectRun(flags) {
   } else if (fresh && !CURRENT.recipe.init) {
     say(`tracker-sync: the store is new; the recipe declares no init, so the tracker's state must be put there by the project (see the integration's Tracker layout field)`);
   }
-  // This machine takes its ordinal in the store, through the ref, so that two
-  // machines never share one: a record's id is built from it (see the recipe).
-  if (CURRENT.recipe.ordinal) {
-    const name = String(flags.machine || (await run('hostname', [], {})).stdout.trim() || 'machine');
-    await syncOnce({ quiet: true });
-    await recipeOk('ordinal', { machine: quote(name) });
-    const oid = await commitState(`tracker store: this machine takes its ordinal`, [await headOid()]);
-    const res = await pushOid(oid, { quiet: true });
-    say(`tracker-sync: this machine is named in the store's machine ordinals${res.ok ? '' : ' (kept here, published when the remote answers)'}`);
-  }
+  // The in-branch store's state is taken in BEFORE this machine claims its
+  // ordinal and before anything of ours is pushed: the copy is allowed only
+  // while the ref holds no store, and our own first commit would make it look
+  // as if it already did.
   const from = flags['from-checkout'] ? resolve(String(flags['from-checkout'])) : null;
   if (from) {
     const remote = await fetchRemote();
@@ -646,8 +680,13 @@ async function connectRun(flags) {
       say(`tracker-sync: copied ${p} from ${from} into the store`);
     }
     await recipeOk('import', {});
-    const oid = await commitState('tracker store: the state an in-branch store carried into it', [await headOid()]);
-    await pushOid(oid, { quiet: false });
+  }
+  if (CURRENT.recipe.ordinal) {
+    const name = String(flags.machine || (await run('hostname', [], {})).stdout.trim() || 'machine');
+    await recipeOk('ordinal', { machine: quote(name) });
+    const oid = await commitState(`tracker store: this machine takes its ordinal`, [await headOid()]);
+    const res = await pushOid(oid, { quiet: true });
+    say(`tracker-sync: this machine is named in the store's machine ordinals${res.ok ? '' : ' (kept here, published when the remote answers)'}`);
   }
   for (const c of unique) {
     const install = await recipe('pointer.install', { checkout: quote(c) }, { cwd: CURRENT.store });
@@ -735,8 +774,11 @@ async function exportRun(flags, pos) {
     return;
   }
   if (!flags.offline) {
-    const r = await syncOnce({ needsRemote: true, quiet: true });
-    writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastFetch: nowIso(), lastUnreachable: !!(r && r.unreachable) });
+    const release = await takeLockWait(5000);
+    try {
+      const r = await syncOnce({ needsRemote: true, quiet: true });
+      writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastFetch: nowIso(), lastUnreachable: !!(r && r.unreachable) });
+    } finally { release(); }
   }
   for (const p of stateFiles()) {
     const f = join(CURRENT.store, p);
@@ -866,7 +908,10 @@ async function main() {
     }
     case 'transition': {
       if (!flags.item || !flags.to) usage(1);
-      await conditional('transition', 'transition', { item: quote(String(flags.item)), to: quote(String(flags.to)) }, String(flags.item));
+      await conditional('transition', 'transition', {
+        item: quote(String(flags.item)), to: quote(String(flags.to)),
+        expect: quote(flags.expect ? String(flags.expect) : ''),
+      }, String(flags.item));
       break;
     }
     case 'record':

@@ -254,31 +254,40 @@ function cmdMerge(argv) {
     }
     if (!b) {
       // Only on one side: keep it whole (a record that only appends).
-      const it = o && t ? pickSide(o, t, freshId, id) : (o || t);
+      const it = o && t ? pickSide(b, o, t, freshId, id) : (o || t);
       merged.push(it);
       continue;
     }
-    merged.push(pickSide(o, t, freshId, id));
+    merged.push(pickSide(b, o, t, freshId, id));
   }
   merged.sort((a, b2) => (a.id < b2.id ? -1 : 1));
 
-  function pickSide(o, t, freshId, id) {
+  // One item, field by field, against the common ancestor: a field only one
+  // side moved away from the base takes that side, so two independent edits to
+  // one item both survive. A field both sides moved takes the tracker's own
+  // order, and where that cannot separate the two, the order they were
+  // published on the ref - and the value that lost is recorded on the item.
+  // Taking a whole item from the newer side would revert the other's field.
+  function pickSide(b, o, t, freshId, id) {
     const out = { ...o };
-    const winnerSide = newerByOrder(o, t);
-    const loser = winnerSide === 'ours' ? t : o;
-    const winner = winnerSide === 'ours' ? o : t;
     const notes = [];
     for (const f of new Set([...Object.keys(o), ...Object.keys(t)])) {
       if (SKIP_FIELDS.has(f)) continue;
-      const ov = o[f], tv = t[f];
+      const bv = b ? b[f] : undefined, ov = o[f], tv = t[f];
       if (JSON.stringify(ov) === JSON.stringify(tv)) { out[f] = ov; continue; }
-      const w = winner[f];
-      out[f] = w;
-      notes.push(`tracker-sync: field "${f}" set to ${JSON.stringify(w)} (from side ${winnerSide}); replaced ${JSON.stringify(loser[f])} from side ${winnerSide === 'ours' ? 'theirs' : 'ours'}`);
+      const oursMoved = JSON.stringify(ov) !== JSON.stringify(bv);
+      const theirsMoved = JSON.stringify(tv) !== JSON.stringify(bv);
+      if (oursMoved && !theirsMoved) { out[f] = ov; continue; }
+      if (theirsMoved && !oursMoved) { out[f] = tv; continue; }
+      const side = newerByOrder(o, t);
+      const win = side === 'ours' ? ov : tv;
+      const lose = side === 'ours' ? tv : ov;
+      out[f] = win;
+      notes.push(`tracker-sync: field "${f}" set to ${JSON.stringify(win)} (from side ${side}); replaced ${JSON.stringify(lose)} from side ${side === 'ours' ? 'theirs' : 'ours'}`);
     }
     // The tracker's own field: take the newer of the two.
-    out[FIELD_ORDER] = winner[FIELD_ORDER] ?? o[FIELD_ORDER] ?? t[FIELD_ORDER];
-    out.comments = mergeComments(undefined, o, t, freshId, id, null);
+    out[FIELD_ORDER] = newerByOrder(o, t) === 'ours' ? (o[FIELD_ORDER] ?? t[FIELD_ORDER]) : (t[FIELD_ORDER] ?? o[FIELD_ORDER]);
+    out.comments = mergeComments(b, o, t, freshId, id, null);
     for (const n of notes) {
       out.comments.push({ id: freshId(), issue_id: id, author: 'tracker-sync', text: n, created_at: out[FIELD_ORDER] });
     }
@@ -588,7 +597,7 @@ export default {
   init: 'node <recipeFile> init --prefix <prefix>',
   merge: 'node <recipeFile> merge --ours <ours> --theirs <theirs> --base <base> --out <out> --order <order> --order-local <orderLocal> --store <store>',
   claim: 'node <recipeFile> claim --item <item> --holder <holder>',
-  transition: 'node <recipeFile> transition --item <item> --to <to>',
+  transition: 'node <recipeFile> transition --item <item> --to <to> --expect <expect>',
   post: 'node <recipeFile> post --item <item> --text <text>',
   ordinal: 'node <recipeFile> ordinal --machine <machine>',
   pointer: {
