@@ -37,13 +37,13 @@
     "./skills/engineering/model-domain",
     "./skills/engineering/ship-release",
     "./skills/engineering/handle-incident",
+    "./skills/engineering/describe-repository",
+    "./skills/engineering/write-intended-model",
     "./skills/productivity/brainstorming",
     "./skills/productivity/define-product",
     "./skills/productivity/to-research",
     "./skills/productivity/handoff",
-    "./skills/productivity/report-to-shady2k",
-    "./skills/engineering/describe-repository",
-    "./skills/engineering/write-intended-model"
+    "./skills/productivity/report-to-shady2k"
   ],
   "mcpServers": {
     "jev": {

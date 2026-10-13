@@ -203,3 +203,25 @@ test("the validator refuses what the schema refuses, by its own words", async ()
   // storage form (the schema reads storage; the check carries the rule).
   refuse("storage", (m) => { m.kinds[4].storage = "not-a-form"; });
 });
+
+test("every link field reads back as written, the one after the targets list included", async () => {
+  const writer = await import("file://" + join(SETUP, "kinds-registry.mjs"));
+  const read = writer.parseKinds(writer.renderRegistry(), "docs/kinds.yaml");
+  assert.ok(read.ok, read.message);
+  const written = writer.registryJson().kinds.filter((kind) => kind.links);
+  const back = read.value.kinds.filter((kind) => kind.links);
+  for (const [k, kind] of written.entries())
+    for (const [l, link] of kind.links.entries())
+      for (const key of Object.keys(link))
+        assert.ok(back[k].links[l][key] !== undefined, `${kind.name}'s link "${link.field}" loses its ${key} on reading`);
+  const afterTargets = (field) => [
+    "contract: 1", "stages:", "  - id: idea", "kinds:", "  - name: Source", "    prefix: SRC",
+    "    folder: docs/sources", "    stage: idea", "    hint: one", "    links:", "      - field: Grew from",
+    "        targets:", "          - Source", `        ${field}`, "",
+  ].join("\n");
+  for (const field of ["cardinality: some", "required: yes", "backlink: 9bad", "colour: red"]) {
+    const refused = writer.parseKinds(afterTargets(field), "docs/kinds.yaml");
+    assert.equal(refused.ok, false, `"${field}" right after the targets list is read past, not refused`);
+    assert.match(refused.message, /^docs\/kinds\.yaml:14: /);
+  }
+});

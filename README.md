@@ -881,6 +881,34 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
 
 ## Changelog
 
+- **0.106.0** gives a product's wiki its repositories' descriptions and puts
+  the product's own kinds registry in the product. Two new skills,
+  `describe-repository` and `write-intended-model`, moved into the set: one
+  describes a code repository the product spans — its intended model with
+  evidence at a commit and a blob, the architecture page, the capabilities
+  found in the code as requirements and use cases marked derived from code,
+  and the decisions the code or its ADRs show — the other writes, reviews or
+  updates a repository's intended model itself, with a worked example. Both
+  name the engine they run the model check with the way the product's
+  installation names it, and still write every file where no engine is
+  installed. Setup in a product repository — and only there — now writes its kinds registry,
+  `docs/kinds.yaml` under the documents, carrying `contract: 1`: every kind
+  with the wiki's word for it, its id prefix (one to four capitals, unique
+  among the kinds — every kind of the set carries one now), its folder, its
+  stage, the hint
+  a person mid-stage reads, the statuses its documents may carry, and its
+  links — each link the field's name, the names of the kinds its targets
+  may be, the backlink's word, whether it is required and how many it
+  takes (one or many) — the registry the wiki reads alone for its groups,
+  stages and links. Setup never resets one that stands. Templates are overridable
+  per product: the product's own template at its `templates/product/` goes
+  first, the copies installed at `.shady2k/templates/` come next, the set's
+  shipped defaults last. The set's CI checks out and runs nothing but the
+  set — the registry conformance reads the set's own copy of the published
+  schema with the set's own code, so no repository depends on another.
+  A project that is not a product repository needs nothing from this
+  release, and no project is asked to rerun setup.
+
 - **0.105.0** takes the tracker out of your branches and keeps every machine in
   step. A product repository's tracker now lives in one place per machine,
   outside the code branches, so a branch or a merge never carries it and never
@@ -897,32 +925,6 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
   record naming its checks and its review instead of one record per step, with
   the records riding with the work's own landing rather than arriving as commits
   of their own.
-- **0.106.0** gives a product's wiki its repositories' descriptions and puts
-  the product's own kinds registry in the product. Two new skills,
-  `describe-repository` and `write-intended-model`, moved into the set: one
-  describes a code repository the product spans — its intended model with
-  evidence at a commit and a blob, the architecture page, the capabilities
-  found in the code as requirements and use cases marked derived from code,
-  and the decisions the code or its ADRs show — the other writes, reviews or
-  updates a repository's intended model itself, with a worked example. Both
-  name the engine they run the model check with the way the product's
-  installation names it, and still write every file where no engine is
-  installed. Setup in a product repository now writes its kinds registry,
-  `docs/kinds.yaml` under the documents, carrying `contract: 1`: every kind
-  with the wiki's word for it, its id prefix (one to four capitals, unique
-  among the kinds — every kind of the set carries one now), its folder, its
-  stage, the hint
-  a person mid-stage reads, the statuses its documents may carry, and its
-  links — each link the field's name, the names of the kinds its targets
-  may be, the backlink's word, whether it is required and how many it
-  takes (one or many) — the registry the wiki reads alone for its groups,
-  stages and links. Setup never resets one that stands. Templates are overridable
-  per product: the product's own template at its `templates/product/` goes
-  first, the copies installed at `.shady2k/templates/` come next, the set's
-  shipped defaults last. The set's CI checks out and runs nothing but the
-  set — the registry conformance reads the set's own copy of the published
-  schema with the set's own code, so no repository depends on another.
-  **This release raises the setup version: projects rerun setup once.**
 
 - **0.104.0** keeps a design on the right footing. A review now asks first
   whether the design serves the work's goal and the decisions you gave, and

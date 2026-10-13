@@ -59,10 +59,8 @@ In a product repository these places are the layout's and none is asked: the
 vision is `docs/vision.md`; the roadmap, charters, glossary, architecture,
 current capabilities and change records sit under `docs/` at the paths above;
 the product's own documents are `docs/` by their kinds ([the product's
-documents](references/product.md)), the code repositories the product spans
-are `repos/`, and the kinds registry — `docs/kinds.yaml`, under the
-documents — is written by setup ([the kinds registry](references/product.md)). A capability
-is still the unit a spec is kept by.
+documents](references/product.md)); and the code repositories the product
+spans are `repos/`. A capability is still the unit a spec is kept by.
 
 Specs are kept **by capability**, not by feature: a capability spec is the
 current truth, and a feature is a change record whose requirement deltas are

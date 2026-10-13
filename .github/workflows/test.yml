@@ -1,11 +1,7 @@
-# The set's checks: the gate's selftests, the repo rules, the set's own
-# tests and the navigation registry's live lane — the registry the set
-# writes, read under the set's own reader. No repository depends on
-# another: nothing here checks out or runs another repository, and the
-# product-repository contract's shape is validated by the set's own code
-# against the set's own copy of the published schema. Where that copy is
-# on the branch, its check runs in this workflow; where it is not yet,
-# the conformance run skips with that named — a skip is never a pass.
+# The set's checks: the gate's selftests, the repo rules and the set's own
+# tests, the kinds registry's conformance among them. Nothing here checks out
+# or runs another repository: the registry is validated against the set's own
+# copy of the product-repository contract's published schema.
 name: test
 
 on:

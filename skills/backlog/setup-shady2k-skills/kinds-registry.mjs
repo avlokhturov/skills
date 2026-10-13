@@ -620,6 +620,10 @@ export function parseKinds(text, file) {
                   return fail(file, subLine, "a link's targets hold no target — the list is refused empty: a link names the kinds its targets may be, one on a line");
                 }
                 link.targets = targets;
+                // The target list already stands past its last line: the
+                // next field is read as it is, never stepped over.
+                while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i++;
+                continue;
               } else if (subKey === "backlink") {
                 const read = wordScalar(subPair[2], "link's backlink", subLine);
                 if (read.ok === false) return read;
