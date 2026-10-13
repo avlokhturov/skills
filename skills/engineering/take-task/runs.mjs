@@ -1441,6 +1441,9 @@ async function selftest() {
   delete process.env.PI_CODING_AGENT_SESSION_DIR;
   // pi's and prime-agent's sessions are in their own homes, under this one.
   process.env.HOME = home;
+  // The owner's config folder follows XDG_CONFIG_HOME first, which a CI runner
+  // sets: the selftest's channel lives under this home only when it is unset.
+  delete process.env.XDG_CONFIG_HOME;
   for (const k of ['PRIME_AGENT_SESSION_DIR', 'PRIME_AGENT_CODING_AGENT_SESSION_DIR', 'PRIME_AGENT_CODING_AGENT_DIR']) delete process.env[k];
   for (const key of sessionEnvVars()) delete process.env[key];
   const failures = [];
