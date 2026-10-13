@@ -644,6 +644,7 @@ async function conditional(kind, decl, map, item) {
   die(3, `${kind} lost: three pushes were refused; read again and take other work`);
 }
 let RECORDED_REV = null;
+let RECORDED_BEFORE = null;
 async function recordRun({ revision, checkout, fromTree }) {
   const ck = checkout ? resolve(checkout) : CURRENT.repoRoot;
   // A recording the remote already holds is refused before anything is written.
@@ -684,9 +685,21 @@ async function recordRun({ revision, checkout, fromTree }) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, sideText(parts));
     RECORDED_REV = String(rev).slice(0, 12);
-    return commitState(`tracker store: record ${String(rev).slice(0, 12)}`, [await headOid()]);
+    RECORDED_BEFORE = await headOid();
+    return commitState(`tracker store: record ${String(rev).slice(0, 12)}`, [RECORDED_BEFORE]);
   });
-  await pushOid(oid, { quiet: true });
+  const pushed = await pushOid(oid, { quiet: true });
+  if (!pushed.ok) {
+    // A recording is "written once" against the ref, not against this machine:
+    // one that never lands is one the other machines cannot see, and each of
+    // them would record the same revision again. So it is undone, and said.
+    await locked(async () => {
+      await gitOk(['reset', '--hard', RECORDED_BEFORE], { cwd: CURRENT.store });
+      keepIdentity();
+      await recipeOk('import', {});
+    });
+    die(4, `${RECORDED_REV} was not recorded: its push did not land (${pushed.unreachable ? 'the remote is unreachable' : 'the remote refused it'}), and a recording the other machines cannot see would let each of them record the same revision again. Nothing was recorded here`);
+  }
   writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastRecord: nowIso() });
   say(`tracker-sync: recorded the store at ${RECORDED_REV}`);
 }

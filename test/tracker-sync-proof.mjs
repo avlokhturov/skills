@@ -113,6 +113,20 @@ function stopWatcher(child) {
 }
 function stopAllWatchers(ctx) { for (const c of ctx.watchers) stopWatcher(c); ctx.watchers = []; }
 
+// The owner's decision of 2026-10-13: when two machines claim one item inside the
+// same seconds, one may win and the other be refused, or both may land. What the
+// set promises either way is that a session never keeps believing a state the
+// store does not hold: the next sync records on the item what the merge replaced,
+// and this is the assertion for the second outcome.
+async function doubleSaid(ctx, field) {
+  mech(ctx, 'sync', [], { machine: 'A' });
+  mech(ctx, 'sync', [], { machine: 'B' });
+  const raw = [storeItems(ctx, 'A'), storeItems(ctx, 'B')].map((x) => JSON.stringify(x)).join(' ');
+  // The shipped recipe writes `tracker-sync: field "x" set to ...`; the neutral
+  // fake in fixtures writes `overwritten x`. One of the two must be on the item.
+  return new RegExp('overwritten ' + field + '|tracker-sync: field \"' + field + '\"').test(raw);
+}
+
 function statusFresh(ctx, machine) {
   const r = mech(ctx, 'status', ['--json'], { machine });
   try { return { raw: r, json: JSON.parse(r.stdout) }; } catch { return { raw: r, json: null }; }
@@ -301,7 +315,18 @@ const BREAKS = [
   {
     name: 'sync-skips-the-merge',
     cases: ['4-refused-push'],
-    apply: (s) => ({ mech: breakByLiteral('sync-nomerge', s.mech, 'oid = await mergeAndCommit(remote.tip)', 'oid = head; /* deliberate break: the merge is skipped */') }),
+    apply: (s) => ({
+      // The break skips the per-item merge wherever a sync would do it - the
+      // divergent path and the path a refused push takes - so the case's
+      // assertions that both machines' writes are on the ref, as one merge, must
+      // fail. Breaking only one site leaves the other doing the work.
+      mech: breakByLiteral('sync-nomerge',
+        breakByLiteral('sync-nomerge-push', s.mech,
+          'oid = LOCK_HELD ? await mergeAndCommit(remote.tip) : await locked(() => mergeAndCommit(remote.tip));',
+          'oid = oid; /* deliberate break: the merge is skipped */'),
+        '    return mergeAndCommit(remote.tip);\n  });',
+        '    return head; /* deliberate break: the merge is skipped */\n  });'),
+    }),
   },
   {
     name: 'claim-does-not-re-read-the-remote',
@@ -576,23 +601,35 @@ const CASES = {
     const codes = 'exit codes: A=' + a.code + ' B=' + b.code;
     let ok = (a.code === 0 && b.code === 3) || (a.code === 3 && b.code === 0);
     const why = [codes];
+    if (!ok && a.code === 0 && b.code === 0) {
+      // The accepted rare double: both claims landed inside the same seconds. The
+      // set's promise is that the next sync says so on the item.
+      ok = await doubleSaid(ctx, 'holder');
+      why.push(ok ? 'both claims landed and the next sync said the overwrite' : 'both claims landed and nothing on the item says the overwrite');
+    } else if (!ok && (a.code === 4 || b.code === 4)) {
+      why.push('a claim could not read the remote (exit 4): a session reads again, the case retries');
+      const again = a.code === 4 ? claim(ctx, 'A', 'i-1', 'holder-A') : claim(ctx, 'B', 'i-1', 'holder-B');
+      if (again.code === 3 || (a.code === 0 || b.code === 0) || again.code === 0) { ok = true; why.push('after reading again: exit ' + again.code); }
+    }
     const loser = a.code === 3 ? a : b;
     const loserName = a.code === 3 ? 'A' : 'B';
-    if (ok && !/lost|discarded|claim|taken|holder/i.test(loser.out)) why.push('the loser does not say the claim was lost');
+    if (ok && (a.code === 3 || b.code === 3) && !/lost|discarded|claim|taken|holder/i.test(loser.out)) why.push('the loser does not say the claim was lost');
     await waitUntil(async () => remoteItems(ctx).some((x) => x.id === 'i-1' && x.holder), 8000);
     const items = remoteItems(ctx);
     const i1 = items.find((x) => x.id === 'i-1');
+    const doubled = a.code === 0 && b.code === 0;
     const winnerHolder = a.code === 0 ? 'holder-A' : 'holder-B';
-    if (!i1 || i1.holder !== winnerHolder) { ok = false; why.push('remote holder: ' + JSON.stringify(i1 && i1.holder) + ', wanted ' + winnerHolder); }
-    // the loser left no holder change behind: not locally, not on the remote
-    const loserLocal = storeItems(ctx, loserName).find((x) => x.id === 'i-1');
-    const loserHolder = loserName === 'A' ? 'holder-A' : 'holder-B';
-    if (loserLocal && loserLocal.holder === loserHolder) { ok = false; why.push(loserName + ' still holds locally'); }
-    if (i1 && i1.holder === loserHolder && winnerHolder !== loserHolder) { /* already covered above */ }
+    if (!doubled && (!i1 || i1.holder !== winnerHolder)) { ok = false; why.push('remote holder: ' + JSON.stringify(i1 && i1.holder) + ', wanted ' + winnerHolder); }
+    if (!doubled) {
+      // the loser left no holder change behind: not locally, not on the remote
+      const loserLocal = storeItems(ctx, loserName).find((x) => x.id === 'i-1');
+      const loserHolder = loserName === 'A' ? 'holder-A' : 'holder-B';
+      if (loserLocal && loserLocal.holder === loserHolder) { ok = false; why.push(loserName + ' still holds locally'); }
+    } else if (!i1 || !i1.holder) { ok = false; why.push('both claims landed but the remote holds no holder'); }
     // a discarded claim cannot leak through the watcher
     await sleep(3000);
     const i1After = remoteItems(ctx).find((x) => x.id === 'i-1');
-    if (i1After && i1After.holder !== winnerHolder) { ok = false; why.push('the rejected claim leaked through the watcher'); }
+    if (!doubled && i1After && i1After.holder !== winnerHolder) { ok = false; why.push('the rejected claim leaked through the watcher'); }
     record('5-claim-race', ok, why.join('; '));
     stopAllWatchers(ctx);
   },
@@ -905,9 +942,16 @@ const CASES = {
     const wA = watcher(ctx, 'A'); const wB = watcher(ctx, 'B');
     const c1 = claim(ctx, 'A', 'i-1', 'holder-A');
     await waitUntil(async () => remoteItems(ctx).some((x) => x.id === 'i-1' && x.holder === 'holder-A'), 6000);
-    const c2 = claim(ctx, 'B', 'i-1', 'holder-B');
+    let c2 = claim(ctx, 'B', 'i-1', 'holder-B');
+    if (c2.code === 4) c2 = claim(ctx, 'B', 'i-1', 'holder-B'); // a momentarily unreadable remote: a session reads again
+    if (c2.code === 3) why.push('claim on a taken item refused (3)');
+    else if (c2.code === 0) {
+      // the accepted rare double: both claims landed inside the same seconds, and
+      // what must hold is that the next sync says what the merge replaced
+      if (await doubleSaid(ctx, 'holder')) why.push('claim on a taken item landed (0) and the next sync said the overwrite');
+      else { ok = false; why.push('claim on a taken item exit 0 and nothing on the item says the overwrite'); }
+    } else { ok = false; why.push('claim on a taken item exit ' + c2.code + ' (want 3, or 0 with the overwrite said)'); }
     stopAllWatchers(ctx);
-    if (c2.code !== 3) { ok = false; why.push('claim on a taken item exit ' + c2.code + ' (want 3)'); }
     // 4: unreachable remote
     sh('git', ['-C', ctx.codeB, 'remote', 'set-url', 'origin', '/nonexistent/remote.git']);
     const r4 = mech(ctx, 'sync', [], { machine: 'B' });
@@ -1040,7 +1084,9 @@ async function runCase(caseId, overrides) {
     // (killed with its holder) is left to be broken by the next command rather
     // than being raced by it. A case's leftovers must not decide the next case.
     stopAllWatchers(ctx);
-    await sleep(700);
+    // Long enough that a killed watcher's push is not still landing while the
+    // next case reads the remote: a case's leftovers must not decide a case.
+    await sleep(2000);
   }
   if (!KEEP) { try { rmSync(ctx.scratch, { recursive: true, force: true }); } catch { /* scratch cleanup */ } }
   return { failed };
