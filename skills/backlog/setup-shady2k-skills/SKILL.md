@@ -158,6 +158,20 @@ mechanism is what meets them, and this skill installs it:
   necessarily at machine boot, so automatic supervision there is **not shipped**.
   Nothing in this setup installs into a user's systemd or launchd directory
   without being asked.
+- **Keep one machine's paths out of every machine's checkout, and know what a
+  remote that answers is.** The record and relink steps are composed onto the
+  checkout's own hooks, never written into a folder inside the repository: where
+  `core.hooksPath` names a folder in the tree, connect refuses and prints the line
+  for the project to add to its own hook, because that line carries this machine's
+  state directory and the recipe's path, which no other machine can use. Every
+  command the mechanism runs runs without git's own hook environment (`GIT_DIR`,
+  `GIT_INDEX_FILE`, `GIT_WORK_TREE` and the rest of it): a step started from a hook
+  must read and write the store, never the code checkout the hook came from.
+  A revision that is already recorded is success — the command says so and writes
+  nothing — because a hook runs again after a merge. Reachability is whether the
+  remote answers: a remote whose `HEAD` names a branch that does not exist answers
+  and is reachable, and only a remote that does not answer makes a read refuse (or
+  connect says to pass `--offline` and publish when it does).
 - **Say what the no-code-CI property is.** The ref is not a branch and not a
   tag, which is why a push to it is expected to start no code CI; the host's
   documented behaviour is cited in the mechanism's own notes, and the proof that
@@ -180,8 +194,16 @@ mechanism is what meets them, and this skill installs it:
   (`record --revision <revision> --from-tree`) before the store leaves the tree,
   so a read at that revision still answers; take the initial copy only while the
   ref holds no store, and let every machine import and merge instead of copying
-  once it does; remove the in-branch store and the hook that narrowed what a
-  branch commits of it in one change that names the move.
+  once it does; carry the tracker's own settings with the items, so a setting such
+  as exclusive claims survives the move and a second machine's connect instead of
+  silently becoming the tracker's default; remove the in-branch store and the hook
+  that narrowed what a branch commits of it in one change that names the move. Say
+  what a checkout of a branch from before the move does: it replaces the pointer
+  with that branch's own tracker folder, so the next connect — and the step
+  installed for a checkout — relinks it; a leftover folder that holds nothing but
+  locks is moved aside and the pointer put back, a folder that holds a tracker is
+  refused and named, and the pointer check refuses a real folder where the link
+  belongs rather than reading it as reaching the store.
 
 **The setup task comes first.** Before any repository change, find or create
 the setup task in the tracker; it owns installation, cleanup and their commits

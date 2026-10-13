@@ -16,7 +16,7 @@
  * no case ran at all.
  */
 import { spawnSync, spawn } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, openSync, closeSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, openSync, closeSync, lstatSync, readlinkSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -99,6 +99,12 @@ function mech(ctx, sub, args, opts = {}) {
   const shimEnv = shim ? { PATH: shim + ':' + process.env.PATH, GITSHIM_LOG: join(ctx.scratch, 'git-shim.log') } : {};
   return sh('node', [ctx.mech, sub, '--recipe', ctx.recipe, '--state', state, '--repo', repo, ...args],
     { ...opts, env: { ...env, ...shimEnv }, cwd: opts.cwd || ctx.scratch });
+}
+// The mechanism with NO --state: the state folder is the one it derives from
+// the repository itself, which is what the per-machine keying is about.
+function mechDefault(ctx, sub, args, { repo, env } = {}) {
+  const e = { ...process.env, TRACKER_RECIPE: ctx.recipe, ...(env || {}) };
+  return sh('node', [ctx.mech, sub, '--recipe', ctx.recipe, '--repo', repo, ...args], { env: e, cwd: ctx.scratch });
 }
 function watcher(ctx, machine, args = ['--interval', '1', '--debounce', '2']) {
   const logPath = join(ctx.scratch, 'watch-' + machine + '-' + ctx.watchers.length + '.log');
@@ -246,6 +252,7 @@ function newCtx(tag, overrides = {}) {
     mech: overrides.mech || MECH_SRC,
     recipe: overrides.recipe || RECIPE_SRC,
     fake: overrides.fake || FAKE_SRC,
+    br: overrides.br !== undefined ? !!overrides.br : overrides.recipe === BR_RECIPE,
     watchers: [],
     gitShim: GIT_SHIM ? '/tmp/gitshim' : null,
   };
@@ -254,7 +261,7 @@ function connect(ctx, machine, extraArgs = []) {
   const checkouts = machine === 'A' ? [ctx.codeA] : [ctx.codeB];
   // a recipe whose init needs an id prefix gets one derived from the scratch
   // tag, so the shipped br recipe and the fake take the same path
-  const prefix = ctx.recipe === BR_RECIPE ? ['--prefix', 'br-' + machine.toLowerCase()] : [];
+  const prefix = ctx.br ? ['--prefix', 'br-' + machine.toLowerCase()] : [];
   return mech(ctx, 'connect', ['--machine', machine, '--checkout', ...checkouts, ...prefix, ...extraArgs], { machine });
 }
 function bringUp(ctx, machine) {
@@ -271,7 +278,7 @@ function bringUp(ctx, machine) {
     // the fake tracker's store starts empty: give it its first records.
     // The br recipe imports the state from the ref; a store that already
     // carries items is left alone.
-    const itemsFile = join(store, ctx.recipe === BR_RECIPE ? '.beads/issues.jsonl' : 'fake/items.jsonl');
+    const itemsFile = join(store, ctx.br ? '.beads/issues.jsonl' : 'fake/items.jsonl');
     const hasState = existsSync(itemsFile) && readFileSync(itemsFile, 'utf8').trim();
     if (!hasState) {
       seedStore(ctx, machine, [item1(), item2(), item3()]);
@@ -296,6 +303,12 @@ function bringUp(ctx, machine) {
   return r;
 }
 const cacheKey = (m) => (m === 'A' ? 'storeA' : 'storeB');
+// A case that proves the tracker's own recipe runs the br recipe; the neutral
+// fake is the default. A broken copy of that recipe replaces it in a mutation.
+const CASE_OVERRIDES = {
+  '18-br-settings-survive-the-move': { recipe: BR_RECIPE, br: true },
+  '19-br-relink-after-a-pre-move-branch': { recipe: BR_RECIPE, br: true },
+};
 function waitForRemoteOnce(ctx) {
   for (let i = 0; i < 50; i++) { const tip = remoteTip(ctx); if (tip) return tip; }
   return null;
@@ -319,11 +332,15 @@ function checkSyntax(name, file) {
   const r = spawnSync('node', ['--check', file], { encoding: 'utf8' });
   if (r.status !== 0) throw new Error('break ' + name + ': the broken copy does not parse: ' + (r.stderr || '').split('\n')[0]);
 }
-function makeBrokenEnv(breakName, apply) {
+function makeBrokenEnv(breakName, apply, breakDef = {}) {
   const dir = join(SCRATCH, 'broken-' + breakName);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  const src = { mech: readFileSync(MECH_SRC, 'utf8'), recipe: readFileSync(RECIPE_SRC, 'utf8'), fake: readFileSync(FAKE_SRC, 'utf8') };
+  const src = {
+    mech: readFileSync((breakDef.sources && breakDef.sources.mech) || MECH_SRC, 'utf8'),
+    recipe: readFileSync((breakDef.sources && breakDef.sources.recipe) || RECIPE_SRC, 'utf8'),
+    fake: readFileSync((breakDef.sources && breakDef.sources.fake) || FAKE_SRC, 'utf8'),
+  };
   const out = apply(src);
   const mechPath = join(dir, 'tracker-sync.mjs');
   const recipePath = join(dir, 'recipe.mjs');
@@ -332,6 +349,7 @@ function makeBrokenEnv(breakName, apply) {
   writeFileSync(recipePath, out.recipe !== undefined ? out.recipe : src.recipe);
   writeFileSync(fakePath, out.fake !== undefined ? out.fake : src.fake);
   checkSyntax(breakName, mechPath);
+  checkSyntax(breakName, recipePath);
   checkSyntax(breakName, fakePath);
   return { mech: mechPath, recipe: recipePath, fake: fakePath };
 }
@@ -377,9 +395,10 @@ const BREAKS = [
     // through the other, which is what made this mutation survive once already.
     apply: (s) => ({
       mech: breakByLiteral('record-overwrite',
-        breakByLiteral('record-overwrite-local', s.mech, 'if (existsSync(file)) die(1, `a recording', 'if (false) die(1, `a recording'),
-        'if (there)\n        die(1, `${String(rev).slice(0, 12)} is already recorded on the remote; a recording is written once and never moved, so nothing is written here`);',
-        'if (false) die(1, `x`)'),
+        breakByLiteral('record-overwrite-local', s.mech,
+          'if (existsSync(file)) return { already:', 'if (false) return { already:'),
+        "if (there) return { already: String(rev).slice(0, 12), where: 'on the remote' };",
+        "if (false) return { already: String(rev).slice(0, 12), where: 'on the remote' }; /* deliberate break: the recording is written again */"),
     }),
   },
   {
@@ -405,22 +424,82 @@ const BREAKS = [
     cases: ['3-unreachable-remote'],
     apply: (s) => ({ mech: breakByLiteral('sync-nosay', s.mech, 'const r = await syncOnce({ needsRemote: true, quiet: false });', 'const r = await syncOnce({ needsRemote: false, quiet: false }); /* deliberate break: unreachability is never said */') }),
   },
+  {
+    name: 'machine-store-keyed-by-the-worktree',
+    cases: ['14-machine-store-per-machine'],
+    // the fix, undone: the checkout the command was run in names the store again
+    apply: (s) => ({ mech: breakByLiteral('machine-key', s.mech,
+      'return base && CURRENT.machineKey ? join(base, CURRENT.machineKey) : join(base, basename(repoRoot));',
+      'return join(base, basename(repoRoot)); /* deliberate break: the worktree names the store */') }),
+  },
+  {
+    name: 'connect-reads-an-answering-remote-as-unreachable',
+    cases: ['15-remote-that-answers-without-a-head'],
+    // the fix, undone: --exit-code on HEAD makes "no such ref" read as unreachable
+    apply: (s) => ({ mech: breakByLiteral('ls-remote-exit-code', s.mech,
+      "const any = await git(['ls-remote', 'origin'], { cwd: repoRoot, timeoutMs: 20000 });",
+      "const any = await git(['ls-remote', '--exit-code', 'origin', 'HEAD'], { cwd: repoRoot, timeoutMs: 20000 }); /* deliberate break */") }),
+  },
+  {
+    name: 'hooks-written-into-the-repository',
+    cases: ['16-hooks-inside-the-repository-refused'],
+    apply: (s) => ({ mech: breakByLiteral('hooks-in-repo',
+      breakByLiteral('hooks-in-repo-continue', s.mech,
+        'if (!plan.inRepo || !plan.missing.length) continue;',
+        'if (false) continue; /* deliberate break: a hooks folder in the tree is written to */'),
+      'die(1, `the hooks folder ${plan.dir}', 'if (false) die(1, `the hooks folder ${plan.dir}') }),
+  },
+  {
+    name: 'record-keeps-git-hook-environment',
+    cases: ['17-record-from-a-hook-and-already-recorded'],
+    apply: (s) => ({ mech: breakByLiteral('hook-env', s.mech,
+      '  for (const k of HOOK_ENV) delete e[k];',
+      '  /* deliberate break: git\'s own hook environment is kept */') }),
+  },
+  {
+    name: 'br-settings-left-behind',
+    cases: ['18-br-settings-survive-the-move'],
+    sources: { recipe: BR_RECIPE },
+    // the recipe does not declare the tracker's settings as state, so they do not travel
+    apply: (s) => ({ recipe: breakByLiteral('br-settings', s.recipe,
+      "stateFiles: ['.beads/issues.jsonl', '.beads/beads.base.jsonl', '.beads/config.yaml'],",
+      "stateFiles: ['.beads/issues.jsonl', '.beads/beads.base.jsonl'], /* deliberate break */") }),
+  },
+  {
+    name: 'br-pointer-overwrites-a-tracker-folder',
+    cases: ['19-br-relink-after-a-pre-move-branch'],
+    sources: { recipe: BR_RECIPE },
+    // every real folder is moved aside, a tracker of its own included
+    apply: (s) => ({ recipe: breakByLiteral('br-pointer', s.recipe,
+      'const held = fs.readdirSync(target).filter((n) => !/\\.lock$/.test(n) && n !== \'locks\');',
+      'const held = []; /* deliberate break: a folder that holds a tracker is moved aside */') }),
+  },
 ];
 
 async function runBroken(breakDef) {
   let overrides;
-  try { overrides = makeBrokenEnv(breakDef.name, breakDef.apply); } catch (e) {
+  try { overrides = makeBrokenEnv(breakDef.name, breakDef.apply, breakDef); } catch (e) {
     record('mutation-' + breakDef.name, false, 'the break could not be applied: ' + e.message);
     return;
   }
   const detail = [];
   let caught = false;
+  let recorded = 0;
   for (const caseId of breakDef.cases) {
     // a mutated run's failures are the point; they do not count as harness
     // failures — the mutation assertion below is the verdict
     const before = failCount;
+    const recordedBefore = results.length;
     const run = await runCase(caseId, overrides);
     failCount = before;
+    // A case that recorded nothing in this environment is a named SKIP (it needs
+    // a tracker command this machine does not have, and it says so), not a case
+    // that passed: a break it cannot catch is not counted here.
+    if (results.length === recordedBefore) {
+      detail.push(caseId + ' recorded nothing here (a named SKIP), so this break is not counted');
+      continue;
+    }
+    recorded++;
     // A break is only caught by a comparison: the case must PASS clean in this
     // environment and FAIL under the break. In the red CI run every mutation
     // "passed" while the clean cases failed at bring-up - the environment, not the
@@ -432,6 +511,7 @@ async function runBroken(breakDef) {
     if (run.failed) { caught = true; detail.push(caseId + ' failed as required'); }
     else detail.push(caseId + ' still passed (case too weak)');
   }
+  if (!recorded) { console.log('SKIP (named): the break ' + breakDef.name + ' — ' + detail.join('; ')); return; }
   record('mutation-' + breakDef.name, caught, detail.join('; '));
 }
 
@@ -732,8 +812,8 @@ const CASES = {
     record('6-recording-written', exists && rawOk, exists ? (rawOk ? '' : 'recording body wrong: ' + raw.slice(0, 80)) : 'no recording file at ' + recPath);
     const again = mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
     const rawAfter = exists ? readFileSync(recPath, 'utf8') : '';
-    record('6-recording-refuses-second', again.code === 1 && rawAfter === raw && /already exists|never moved/i.test(again.out),
-      'exit ' + again.code + ', out: ' + again.out.slice(0, 100));
+    record('6-recording-already-recorded-is-success', again.code === 0 && rawAfter === raw && /already recorded/i.test(again.out),
+      'exit ' + again.code + ', the recording is unchanged: ' + (rawAfter === raw) + ', out: ' + (again.stdout || '').slice(0, 100));
     // the remote already holds a recording of this revision (A's record was
     // pushed): B's record of the same revision is refused and writes nothing
     const rB = bringUp(ctx, 'B');
@@ -745,8 +825,8 @@ const CASES = {
     const wroteLocal = existsSync(join(recDirB, head + '.jsonl'));
     const tip2 = remoteTip(ctx);
     const remoteRec = tip2 ? sh('git', ['-C', ctx.remote, 'cat-file', '-p', tip2 + ':.tracker-sync/recordings/' + head + '.jsonl']).stdout : '';
-    record('6-recording-remote-refused', recB.code === 1 && !wroteLocal && remoteRec === raw && /already recorded|never moved/i.test(recB.out),
-      'exit ' + recB.code + ', wrote local: ' + wroteLocal + ', out: ' + recB.out.slice(0, 110));
+    record('6-recording-remote-already-there', recB.code === 0 && !wroteLocal && remoteRec === raw && /already recorded/i.test(recB.out),
+      'exit ' + recB.code + ', wrote local: ' + wroteLocal + ', the remote recording is unchanged: ' + (remoteRec === raw) + ', out: ' + (recB.stdout || recB.out).slice(0, 110));
     // a read at the recorded revision answers with the recording
     const atRead = mech(ctx, 'export', ['--at', head], { machine: 'A' });
     record('F9-export-at-returns-recording', atRead.code === 0 && atRead.stdout === raw, 'exit ' + atRead.code);
@@ -1117,13 +1197,171 @@ const CASES = {
     record('11-void-retires-on-both', v.code === 0 && !!published.value && onA,
       'void exit ' + v.code + ', on remote: ' + !!published.value + ', on A: ' + onA);
   },
+
+  // 14. One store per machine: the state folder is named after the MAIN checkout,
+  // so a linked worktree of the same machine reaches the store the main checkout
+  // made instead of making one of its own. No --state is passed here: the name the
+  // mechanism derives IS the subject.
+  '14-machine-store-per-machine': async (ctx) => {
+    const xstate = join(ctx.scratch, 'xstate');
+    mkdirSync(xstate, { recursive: true });
+    const env = { XDG_STATE_HOME: xstate };
+    const wt = join(ctx.scratch, 'linked-wt');
+    const add = sh('git', ['-C', ctx.codeA, 'worktree', 'add', '-b', 'linked', wt]);
+    if (add.code !== 0) { record('14-machine-store-per-machine', false, 'could not make a linked worktree: ' + add.out); return; }
+    const main = mechDefault(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA], { repo: ctx.codeA, env });
+    const fromWt = mechDefault(ctx, 'connect', ['--machine', 'A', '--checkout', wt], { repo: wt, env });
+    const storeOfRun = (r) => (r.stdout.match(/connected \d+ checkout\(s\) to (\S+) on /) || [])[1] || null;
+    const a = storeOfRun(main); const b = storeOfRun(fromWt);
+    const dirs = existsSync(xstate) ? readdirSync(xstate) : [];
+    const oneStore = a && b && resolve(a) === resolve(b) && dirs.length === 1;
+    record('14-machine-store-per-machine', main.code === 0 && fromWt.code === 0 && oneStore,
+      'main connect exit ' + main.code + ' -> ' + a + ', linked worktree connect exit ' + fromWt.code + ' -> ' + b
+      + ', state folders ' + JSON.stringify(dirs));
+    // the worktree's own checkout reaches the same store
+    if (oneStore) {
+      const where = sh('node', [ctx.fake, 'where'], { cwd: wt });
+      record('14-worktree-reaches-the-store', where.code === 0 && resolve(where.stdout.trim()) === resolve(a),
+        'the worktree reaches ' + where.stdout.trim() + ' (store ' + a + ')');
+    }
+  },
+
+  // 15. A remote that answers is reachable. A bare remote whose HEAD names a
+  // branch that does not exist (git init --bare defaulting to master while the
+  // project pushes main) answers every ls-remote and holds the store ref.
+  '15-remote-that-answers-without-a-head': async (ctx) => {
+    let r = bringUp(ctx, 'A');
+    if (r.code !== 0) { record('15-remote-that-answers-without-a-head', false, 'bring-up: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
+    const weird = join(ctx.scratch, 'no-head.git');
+    const init = sh('git', ['init', '--bare', '--initial-branch', 'master', weird]);
+    const push = sh('git', ['-C', ctx.codeA, 'push', '-q', weird, 'refs/tracker/state:refs/tracker/state']);
+    if (init.code !== 0 || push.code !== 0) { record('15-remote-that-answers-without-a-head', false, 'could not prepare the remote: ' + (init.out + push.out).slice(0, 150)); return; }
+    const absent = sh('git', ['-C', ctx.codeA, 'ls-remote', '--exit-code', weird, 'HEAD']);
+    const answers = sh('git', ['-C', ctx.codeA, 'ls-remote', weird, 'HEAD']);
+    sh('git', ['-C', ctx.codeA, 'remote', 'set-url', 'origin', weird]);
+    const c = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA]);
+    sh('git', ['-C', ctx.codeA, 'remote', 'set-url', 'origin', ctx.remote]);
+    // the premise: the remote answers, and --exit-code on HEAD says "no such ref"
+    const premise = answers.code === 0 && absent.code === 2;
+    record('15-remote-that-answers-without-a-head', premise && c.code === 0,
+      'ls-remote HEAD exit ' + answers.code + ' with the ref absent, ls-remote --exit-code HEAD exit ' + absent.code
+      + ', connect exit ' + c.code + ' ' + (c.stderr || '').split('\n')[0].slice(0, 120));
+  },
+
+  // 16. A hooks folder inside the repository: connect refuses and prints the line
+  // to add by hand, and writes nothing into the tracked folder.
+  '16-hooks-inside-the-repository-refused': async (ctx) => {
+    const hooks = join(ctx.codeA, 'hooks');
+    mkdirSync(hooks, { recursive: true });
+    writeFileSync(join(hooks, 'post-commit'), '#!/bin/sh\necho the project\'s own hook\n');
+    sh('chmod', ['+x', join(hooks, 'post-commit')]);
+    sh('git', ['-C', ctx.codeA, 'config', 'core.hooksPath', 'hooks']);
+    const before = readFileSync(join(hooks, 'post-commit'), 'utf8');
+    const r = bringUp(ctx, 'A');
+    const after = readFileSync(join(hooks, 'post-commit'), 'utf8');
+    const added = ['post-merge', 'post-checkout'].filter((n) => existsSync(join(hooks, n)));
+    const line = (r.out.match(/tracker-sync\.mjs'? record --revision[^\n]*/) || [])[0] || '';
+    sh('git', ['-C', ctx.codeA, 'config', '--unset', 'core.hooksPath']);
+    const ok = r.code === 1 && after === before && added.length === 0 && /record/.test(line);
+    record('16-hooks-inside-the-repository-refused', ok,
+      'connect exit ' + r.code + ', the tracked hook is unchanged: ' + (after === before)
+      + ', files written beside it: ' + JSON.stringify(added) + ', it prints the line to add: ' + JSON.stringify(line.slice(0, 120)));
+  },
+
+  // 17. The record step run from the hook git itself runs: the recording lands, and
+  // a revision that is already recorded is success with nothing written.
+  '17-record-from-a-hook-and-already-recorded': async (ctx) => {
+    let r = bringUp(ctx, 'A');
+    if (r.code !== 0) { record('17-record-from-a-hook-and-already-recorded', false, 'bring-up: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
+    const store = storeOf(ctx, 'A');
+    const recDir = join(store, '.tracker-sync', 'recordings');
+    const recsBefore = existsSync(recDir) ? readdirSync(recDir).length : 0;
+    if (!existsSync(recDir)) { record('17-record-from-a-hook-and-already-recorded', false, 'the store has no recordings directory'); return; }
+    // a plain commit: the installed post-commit runs the record step with git's own
+    // hook environment set, exactly as the first post-commit did
+    writeFileSync(join(ctx.codeA, 'one.txt'), 'one\n');
+    sh('git', ['-C', ctx.codeA, 'add', '.']);
+    const commit = sh('git', ['-C', ctx.codeA, '-c', 'user.name=proof', '-c', 'user.email=proof@local', 'commit', '-qm', 'a commit the hook records']);
+    const rev = sh('git', ['-C', ctx.codeA, 'rev-parse', 'HEAD']).stdout.trim();
+    const file = join(recDir, rev + '.jsonl');
+    // the hook runs synchronously inside the commit; poll briefly, not on the clock alone
+    const wrote = await waitUntil(async () => (existsSync(file) ? true : null), 5000, 100);
+    const body = existsSync(file) ? readFileSync(file, 'utf8') : '';
+    record('17-record-from-a-hook', commit.code === 0 && !!wrote.value && body.includes('"i-1"'),
+      'commit exit ' + commit.code + ', recording for ' + rev.slice(0, 12) + ': ' + existsSync(file)
+      + ' (recordings before the commit: ' + recsBefore + ', now: ' + readdirSync(recDir).length + ')');
+    // a revision already recorded is success, and a recording is never moved
+    const again = mech(ctx, 'record', ['--revision', rev, '--checkout', ctx.codeA], { machine: 'A' });
+    const body2 = existsSync(file) ? readFileSync(file, 'utf8') : '';
+    record('17-already-recorded-is-success', again.code === 0 && body2 === body && /already recorded/i.test(again.out),
+      'exit ' + again.code + ', the recording is unchanged: ' + (body2 === body) + ', ' + (again.stdout || again.out).split('\n')[0].slice(0, 100));
+  },
+
+  // 18. The tracker's own settings travel with the items: a setting that changes the
+  // tracker's behaviour survives the move and a second machine's connect.
+  '18-br-settings-survive-the-move': async (ctx) => {
+    if (!brOnPath()) { console.log('SKIP (named): br is not on PATH, so the tracker\'s own settings cannot be proved here'); return; }
+    let r = bringUp(ctx, 'A');
+    if (r.code !== 0) { record('18-br-settings-survive-the-move', false, 'bring-up A: ' + r.out.split('\n').slice(0,3).join(' | ')); return; }
+    const storeA = storeOf(ctx, 'A');
+    const setting = 'claim_exclusive: true\n';
+    writeFileSync(join(storeA, '.beads', 'config.yaml'), setting);
+    r = mech(ctx, 'publish', [], { machine: 'A' });
+    if (r.code !== 0) { record('18-br-settings-survive-the-move', false, 'publish A: ' + r.out.split('\n')[0]); return; }
+    // B: a fresh clone, connect rebuilds its database and its settings from the ref
+    r = bringUp(ctx, 'B');
+    const storeB = storeOf(ctx, 'B');
+    const cfgB = storeB ? join(storeB, '.beads', 'config.yaml') : null;
+    const got = cfgB && existsSync(cfgB) ? readFileSync(cfgB, 'utf8') : '';
+    record('18-br-settings-survive-the-move', r.code === 0 && /claim_exclusive:\s*true/.test(got),
+      'connect B exit ' + r.code + ', its settings carry ' + JSON.stringify(got.trim().slice(0, 60)));
+  },
+
+  // 19. A checkout of a branch from before the move leaves a real tracker folder
+  // where the pointer belongs: connect relinks it, the hook does the same on the
+  // next checkout, and a folder that really holds a tracker is refused by name.
+  '19-br-relink-after-a-pre-move-branch': async (ctx) => {
+    if (!brOnPath()) { console.log('SKIP (named): br is not on PATH, so the pointer cannot be relinked here'); return; }
+    let r = bringUp(ctx, 'A');
+    if (r.code !== 0) { record('19-br-relink-after-a-pre-move-branch', false, 'bring-up A: ' + r.out.split('\n').slice(0,3).join(' | ')); return; }
+    const store = storeOf(ctx, 'A');
+    // what the checkout leaves: the tracker's locks and nothing else
+    const pointer = join(ctx.codeA, '.beads');
+    rmSync(pointer, { recursive: true, force: true });
+    mkdirSync(pointer, { recursive: true });
+    writeFileSync(join(pointer, '.write.lock'), '');
+    const c = connect(ctx, 'A');
+    const linked = (() => { const st = lstatSync(pointer, { throwIfNoEntry: false }); return !!st && st.isSymbolicLink() && resolve(readlinkSync(pointer)) === resolve(join(store, '.beads')); })();
+    record('19-connect-relinks-a-leftover-folder', c.code === 0 && linked,
+      'connect exit ' + c.code + ', the pointer is a link to the store: ' + linked + ' ' + (c.out || '').split('\n').slice(0, 2).join(' | ').slice(0, 140));
+    // a folder that holds a tracker is never overwritten
+    const other = join(ctx.scratch, 'other');
+    sh('git', ['clone', ctx.remote, other]);
+    mkdirSync(join(other, '.beads'), { recursive: true });
+    writeFileSync(join(other, '.beads', 'issues.jsonl'), '{"id":"x-1"}\n');
+    const check = sh('node', [ctx.recipe, 'pointer-check', '--checkout', other], { cwd: store });
+    const install = sh('node', [ctx.recipe, 'pointer-install', '--checkout', other], { cwd: store });
+    const kept = existsSync(join(other, '.beads', 'issues.jsonl')) && !lstatSync(join(other, '.beads')).isSymbolicLink();
+    record('19-a-real-folder-is-refused', check.code === 1 && install.code === 1 && kept,
+      'pointer-check exit ' + check.code + ', pointer-install exit ' + install.code + ', the folder is kept: ' + kept
+      + ' — ' + (check.stderr || check.out).split('\n')[0].slice(0, 120));
+    // the post-checkout hook relinks: a branch checked out after the folder is back
+    const c2 = connect(ctx, 'A');
+    rmSync(pointer, { recursive: true, force: true });
+    mkdirSync(pointer, { recursive: true });
+    writeFileSync(join(pointer, '.write.lock'), '');
+    const co = sh('git', ['-C', ctx.codeA, 'checkout', '-q', '-b', 'after-the-move']);
+    const relinked = (() => { const st = lstatSync(pointer, { throwIfNoEntry: false }); return !!st && st.isSymbolicLink() && resolve(readlinkSync(pointer)) === resolve(join(store, '.beads')); })();
+    record('19-the-checkout-hook-relinks', c2.code === 0 && co.code === 0 && relinked,
+      'checkout exit ' + co.code + ', the hook put the pointer back: ' + relinked);
+  },
 };
 
 const CASE_TIMEOUT_MS = 240000;
 async function runCase(caseId, overrides) {
   const fn = CASES[caseId];
   if (!fn) { record(caseId, false, 'no such case'); return { failed: true }; }
-  const ctx = newCtx(caseId.replace(/[^a-zA-Z0-9-]/g, '_').slice(0, 40), overrides || {});
+  const ctx = newCtx(caseId.replace(/[^a-zA-Z0-9-]/g, '_').slice(0, 40), { ...(CASE_OVERRIDES[caseId] || {}), ...(overrides || {}) });
   let failed = false;
   try {
     const before = failCount;

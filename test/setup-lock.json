@@ -31,8 +31,8 @@
     "templates/vision.md": "ccc2d945a579372d84a515295ac2bfb791ddf9adec7642ed42bea0d94e512bdb"
   },
   "layout": {
-    "tracker-sync.mjs": "40a16511bebe3278ec9fc8a29f66dbe416da2ae563397161fd4ea5a6b3f7c469",
-    "trackers/br.mjs": "ceb8274261aa4a47471bb0016585c0b01e62d7bf1a72ff52e6e05f9737ee5202",
+    "tracker-sync.mjs": "972fe01c0e5bc357f1b00de2704908450c611f9745a5cd313b5b8928af95e844",
+    "trackers/br.mjs": "3fca5d905fca430f444de57508941f13292740e90ce6241d325baf7e27953ce3",
     "supervisors/systemd-user/tracker-sync.service": "de25f34f557e1d92b55a86568b17a81297221219f8e7f49dd54586352faf56c2"
   }
 }

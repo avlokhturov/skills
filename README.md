@@ -881,6 +881,28 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
 
 ## Changelog
 
+- **0.107.2** fixes five gaps a project met in use after moving its tracker off
+  the code branches. The store is named after the main checkout of the machine,
+  not the checkout a command happened to run in, so every linked worktree of one
+  machine reaches the one store instead of making a store of its own. A remote
+  that answers is reachable even where its `HEAD` names a branch that does not
+  exist, so a bare remote created while the project pushes `main` no longer reads
+  as unreachable. Where a project points its hooks at a folder inside the
+  repository, connect refuses and prints the line to add to the project's own
+  hook, instead of writing this machine's state path into a tracked folder; every
+  command the mechanism runs runs without git's own hook environment (`GIT_DIR`,
+  `GIT_INDEX_FILE`, `GIT_WORK_TREE` and the rest of it), so the record step a
+  commit starts reads and writes the store and not the code checkout it came
+  from; and a revision that is already recorded is success, said as such, where
+  it used to be reported as a failure. The tracker's own settings travel with the
+  items, so a setting such as exclusive claims survives the move and a second
+  machine's connect instead of quietly becoming the tracker's default. A tracker
+  folder that a checkout of a branch from before the move leaves where the
+  pointer belongs is relinked — by connect, and by the step installed for a
+  checkout — while a folder that really holds a tracker is refused and named. The
+  installed layout files change, so a project that chose this layout reruns setup
+  to refresh its copy and reports the version it carries; the setup version does
+  not rise, because nothing a project must configure changed.
 - **0.107.1** refuses a registry's link field that carries the name of one of the
   generic fields every document carries — `id`, `kind`, `status`, `links`, in any
   spelling — at the field's own line, as the published contract now refuses it.

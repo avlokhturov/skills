@@ -23,11 +23,25 @@
  * and a value not yet on the remote ranks as the tip being published now. A
  * machine's clock is never consulted.
  *
+ * The machine's state folder is named after the MAIN checkout - the parent of
+ * `git rev-parse --git-common-dir` - so every linked worktree of this machine
+ * reaches the one store, not a store of its own.
+ *
+ * The record hooks this installs are composed onto the checkout's hooks, never
+ * written into a folder inside the repository: with `core.hooksPath` pointing
+ * into the tree, the line would carry this machine's absolute paths into every
+ * machine's checkout, so connect refuses and prints the line to add by hand.
+ * The hooks it installs are post-commit, post-merge and post-checkout; the
+ * post-checkout one relinks a checkout whose pointer a pre-move branch replaced
+ * with a real folder.
+ *
  * Exit statuses, each with a message naming what is missing or who must fix it:
  *   0  ok
- *   1  a refusal the caller can fix: usage, no recipe, a recording that exists,
- *      a pointer absent, a checkout that is not a repository, a failed recipe
- *      command, a malformed export, two different recordings of one revision
+ *   1  a refusal the caller can fix: usage, no recipe, a pointer absent, a
+ *      checkout that is not a repository, a hooks folder inside the repository, a
+ *      failed recipe command, a malformed export, two different recordings of one
+ *      revision. A recording that already exists is not one of these: it is the
+ *      state the step exists to reach, and the command says so and exits 0.
  *   2  the runtime is missing: git, or a command the recipe needs
  *   3  a claim or a transition was lost: said out loud, nothing left behind
  *   4  the remote is unreachable and another machine's state was needed; the
@@ -100,10 +114,26 @@ function parseArgs(argv) {
 }
 const list = (v) => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
 
+// The variables git exports to a hook it runs. Under `post-commit` and
+// `post-merge` this mechanism IS such a hook, and git sets GIT_DIR,
+// GIT_INDEX_FILE, GIT_WORK_TREE and the rest to the code checkout's repository:
+// a `git -C <store> ...` then reads and writes the CODE repository instead of
+// the store worktree, and the first recording after a commit failed for exactly
+// that reason. Nothing here needs them - every command names its own checkout
+// and its own cwd - so every child runs without them. The tracker's own command
+// is a child too, and it inherits the cleaned environment.
+const HOOK_ENV = ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_PREFIX', 'GIT_OBJECT_DIRECTORY',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_COMMON_DIR', 'GIT_QUARANTINE_PATH', 'GIT_NAMESPACE', 'GIT_INDEX_VERSION'];
+function childEnv(env) {
+  const e = { ...process.env, ...(env || {}) };
+  for (const k of HOOK_ENV) delete e[k];
+  return e;
+}
+
 /** Run a program, bounded in time. Never throws: the caller reads the status. */
 function run(cmd, args, { cwd, env, timeoutMs = 20000, input } = {}) {
   return new Promise((res) => {
-    const child = execFile(cmd, args, { cwd, env: { ...process.env, ...(env || {}) }, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024, killSignal: 'SIGKILL' },
+    const child = execFile(cmd, args, { cwd, env: childEnv(env), timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024, killSignal: 'SIGKILL' },
       (err, stdout, stderr) => {
         const timedOut = !!err && (err.killed || err.signal) && !err.code;
         res({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, stdout: stdout || '', stderr: stderr || '', timedOut, missing: !!err && err.code === 'ENOENT' });
@@ -119,7 +149,15 @@ const text = (r) => `${r.stdout}${r.stderr}`.trim();
 function machineDir(flags, repoRoot) {
   if (flags.state) return resolve(String(flags.state));
   const base = process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state');
-  return join(base, basename(repoRoot));
+  // ONE STORE PER MACHINE, and every checkout and worktree of the machine
+  // reaches it: the name is the MAIN checkout's, never the checkout the command
+  // was run in. `git rev-parse --show-toplevel` differs per linked worktree, so
+  // keying on it gave one machine a store per worktree; the parent of the common
+  // git directory is the main checkout of every worktree of this repository, and
+  // it is the same string from all of them. The value is resolved once, before
+  // anything runs (main()), because resolving it needs git and every git call
+  // here passes through machineDir for the empty hooks path.
+  return base && CURRENT.machineKey ? join(base, CURRENT.machineKey) : join(base, basename(repoRoot));
 }
 const storePathOf = (flags, repoRoot) => join(machineDir(flags, repoRoot), 'tracker');
 const configPath = (flags, repoRoot) => join(machineDir(flags, repoRoot), 'config.json');
@@ -201,7 +239,22 @@ const gitOk = async (args, opts) => {
   return r.stdout.trim();
 };
 
-const CURRENT = { flags: {}, repoRoot: null, recipe: null, store: null, ref: DEFAULT_REF, checkouts: [] };
+const CURRENT = { flags: {}, repoRoot: null, recipe: null, store: null, ref: DEFAULT_REF, checkouts: [], machineKey: null };
+
+/** The name of the machine's state folder: the main checkout of this repository.
+ *
+ * The parent of the common git directory answers for every worktree, linked ones
+ * included, and for a checkout inside the main worktree alike; a repository git
+ * cannot answer about falls back to this checkout's own name, which at least
+ * keeps the command working.
+ */
+async function machineKeyOf(checkout) {
+  const r = await run('git', ['-C', checkout, 'rev-parse', '--git-common-dir'], {});
+  if (r.code !== 0 || !r.stdout.trim()) return basename(checkout);
+  const common = resolve(checkout, r.stdout.trim());
+  const main = dirname(common);
+  return basename(main) || basename(checkout);
+}
 
 async function repoRootOf(checkout) {
   const r = await run('git', ['-C', checkout, 'rev-parse', '--show-toplevel'], {});
@@ -660,10 +713,10 @@ let RECORDED_REV = null;
 let RECORDED_BEFORE = null;
 async function recordRun({ revision, checkout, fromTree }) {
   const ck = checkout ? resolve(checkout) : CURRENT.repoRoot;
-  // A recording the remote already holds is refused before anything is written.
-  // Where the remote cannot be read, the recording is refused too: "written once"
-  // cannot be checked without it, and a duplicate recording of one revision is
-  // exactly what the rule exists to prevent.
+  // What the remote already holds is read before anything is written: a recording
+  // that is there is success, and one that is there with DIFFERENT content is a
+  // refusal. Where the remote cannot be read, neither can be told apart, and
+  // nothing is recorded.
   const remote = await fetchRemote();
   if (!remote.ok)
     die(4, `the remote is unreachable (${remote.said}), so whether this revision is already recorded cannot be checked: nothing is recorded here`);
@@ -687,21 +740,31 @@ async function recordRun({ revision, checkout, fromTree }) {
       parts = stateFiles().map((p) => [p, existsSync(join(CURRENT.store, p)) ? readFileSync(join(CURRENT.store, p), 'utf8') : null]);
     }
     const file = join(CURRENT.store, '.tracker-sync', 'recordings', `${rev}.jsonl`);
-    if (existsSync(file)) die(1, `a recording for ${String(rev).slice(0, 12)} already exists: it is never moved`);
+    // A recording that already exists is SUCCESS, not a failure: the record hook
+    // runs again after a merge, and a person reruns the step after an interrupted
+    // one; "this revision is recorded" is the state the step exists to reach, and
+    // reporting it as an error made a session believe the revision never was
+    // recorded, and made a hook fail on a revision it had recorded itself.
+    // Nothing is written and nothing is pushed.
+    if (existsSync(file)) return { already: String(rev).slice(0, 12), where: 'here' };
     if (remote.ok && !remote.noRef) {
       const there = (await git(['show', `${remote.tip}:.tracker-sync/recordings/${rev}.jsonl`], { cwd: CURRENT.store })).stdout;
       if (there && there !== sideText(parts))
         die(1, `${String(rev).slice(0, 12)} is already recorded on the remote with a different state; neither is moved, a person must decide`);
-      if (there)
-        die(1, `${String(rev).slice(0, 12)} is already recorded on the remote; a recording is written once and never moved, so nothing is written here`);
+      if (there) return { already: String(rev).slice(0, 12), where: 'on the remote' };
     }
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, sideText(parts));
     RECORDED_REV = String(rev).slice(0, 12);
     RECORDED_BEFORE = await headOid();
-    return commitState(`tracker store: record ${String(rev).slice(0, 12)}`, [RECORDED_BEFORE]);
+    return { oid: await commitState(`tracker store: record ${String(rev).slice(0, 12)}`, [RECORDED_BEFORE]) };
   });
-  const pushed = await pushOid(oid, { quiet: true });
+  if (oid.already) {
+    writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastRecord: nowIso() });
+    say(`tracker-sync: ${oid.already} is already recorded ${oid.where}; a recording is written once and never moved, so nothing was written`);
+    return;
+  }
+  const pushed = await pushOid(oid.oid, { quiet: true });
   if (!pushed.ok) {
     // A recording is "written once" against the ref, not against this machine:
     // one that never lands is one the other machines cannot see, and each of
@@ -718,43 +781,113 @@ async function recordRun({ revision, checkout, fromTree }) {
 }
 // ---- connect, status, export, watch ----------------------------------------
 
-async function installHooks(checkout) {
+/** The record step a checkout's own hook needs, said so a person can put it in a
+ * hook this mechanism must not write to itself. */
+const recordLine = (flags, repoRoot, checkout) =>
+  `node ${quote(join(HERE, 'tracker-sync.mjs'))} record --revision "$(git rev-parse HEAD)" --checkout "$(git rev-parse --show-toplevel)" --state ${quote(machineDir(flags, repoRoot))} --recipe ${quote(CURRENT.recipe.path)}`;
+
+/** The line that puts a checkout back on the store's pointer, for the hook that
+ * runs when a branch is checked out. A branch from before the move carries its
+ * own tracker folder, so checking it out replaces the pointer with a real
+ * folder; switching away leaves that folder behind, and a tracker started there
+ * would be a second one. This relinks it, and it says so when it cannot. */
+const relinkLine = (flags, repoRoot) =>
+  `node ${quote(join(HERE, 'tracker-sync.mjs'))} relink --checkout "$(git rev-parse --show-toplevel)" --state ${quote(machineDir(flags, repoRoot))} --recipe ${quote(CURRENT.recipe.path)}`;
+
+const HOOK_MARKS = {
+  'post-commit': '# shady2k tracker-sync record: this line records the revision this hook just cut or landed',
+  'post-merge': '# shady2k tracker-sync record: this line records the revision this hook just cut or landed',
+  'post-checkout': '# shady2k tracker-sync relink: this line puts a checkout back on the store when a branch left a folder there',
+};
+
+/** Where a checkout's hooks are, the line each one needs, and whether that
+ * folder is the repository's own (core.hooksPath inside the tree), where a
+ * machine's absolute paths must never be written. Asked with plain git, never
+ * through the mechanism's own core.hooksPath override: that override would make
+ * git report the mechanism's empty directory instead of the project's hooks. */
+async function hookPlan(checkout) {
   const flags = CURRENT.flags; const repoRoot = CURRENT.repoRoot;
-  // Plainly, without the mechanism's own core.hooksPath override: that override
-  // would make git report the empty directory instead of the project's hooks.
   const hp = await run('git', ['-C', checkout, 'rev-parse', '--git-path', 'hooks'], {});
   if (hp.code !== 0) die(1, `could not find the hooks directory of ${checkout}: ${text(hp)}`);
-  const rel = hp.stdout.trim();
-  const dir = resolve(checkout, rel);
-  mkdirSync(dir, { recursive: true });
-  for (const name of ['post-commit', 'post-merge']) {
-    const f = join(dir, name);
-    // The checkout is asked for, not written in: the hooks directory is usually
-    // shared by every worktree of the repository, and a path baked into it would
-    // record the wrong checkout's revision from every other one.
-    const line = `node ${quote(join(HERE, 'tracker-sync.mjs'))} record --revision "$(git rev-parse HEAD)" --checkout "$(git rev-parse --show-toplevel)" --state ${quote(machineDir(flags, repoRoot))} --recipe ${quote(CURRENT.recipe.path)} >/dev/null 2>&1 || true\n`;
-    const mark = '# shady2k tracker-sync record: this line records the revision this hook just cut or landed\n';
-    if (existsSync(f)) {
-      const t = readFileSync(f, 'utf8');
-      if (t.includes('shady2k tracker-sync record')) continue;
+  const dir = resolve(checkout, hp.stdout.trim());
+  const cfg = await run('git', ['-C', checkout, 'config', '--get', 'core.hooksPath'], {});
+  const inRepo = cfg.code === 0 && cfg.stdout.trim() !== '' ? await hooksInsideRepository(checkout, dir) : false;
+  const files = {
+    'post-commit': `${recordLine(flags, repoRoot, checkout)} >/dev/null 2>&1 || true\n`,
+    'post-merge': `${recordLine(flags, repoRoot, checkout)} >/dev/null 2>&1 || true\n`,
+    'post-checkout': `${relinkLine(flags, repoRoot)} || true\n`,
+  };
+  const wanted = Object.keys(HOOK_MARKS).map((name) => {
+    const file = join(dir, name);
+    const text = existsSync(file) ? readFileSync(file, 'utf8') : null;
+    return { name, file, line: files[name], mark: `${HOOK_MARKS[name]}\n`, text, present: text !== null && text.includes(HOOK_MARKS[name]) };
+  });
+  return { dir, inRepo, wanted, missing: wanted.filter((h) => !h.present) };
+}
+
+/** Whether this hooks folder is inside the checkout's working tree. Git's own
+ * hooks folder is <git dir>/hooks and is not the repository's file; a folder the
+ * project configured with core.hooksPath that lies in the tree is. */
+async function hooksInsideRepository(checkout, dir) {
+  const top = await run('git', ['-C', checkout, 'rev-parse', '--show-toplevel'], {});
+  if (top.code !== 0) return false;
+  const inside = (p, root) => p === root || p.startsWith(root.endsWith('/') ? root : `${root}/`);
+  return inside(dir, resolve(top.stdout.trim()));
+}
+
+async function installHooks(checkout) {
+  const plan = await hookPlan(checkout);
+  mkdirSync(plan.dir, { recursive: true });
+  for (const h of plan.wanted) {
+    const { file: f, mark, line } = h;
+    if (h.present) continue;
+    if (h.text !== null) {
       // A hook that is not a POSIX shell script cannot carry this line: shell
       // appended to another language is a syntax error that stops every commit.
-      const shebang = (t.split('\n')[0] || '').trim();
+      const shebang = (h.text.split('\n')[0] || '').trim();
       if (shebang.startsWith('#!') && !/\/(sh|bash|dash|zsh|ksh)\b/.test(shebang)) {
-        die(1, `${f} is not a shell hook (${shebang}): tracker-sync will not append shell to it. Call the record step from that hook yourself: ${line.trim()}`);
+        die(1, `${f} is not a shell hook (${shebang}): tracker-sync will not append shell to it. Call the step from that hook yourself: ${line.trim()}`);
       }
       // A hook that ends in `exit 0` would end before an appended step runs, so
       // the step goes in front of that line, and the project's own hook is kept.
-      const tail = t.match(/\n[ \t]*exit[ \t]+0[ \t]*\n?[ \t]*$/);
+      const tail = h.text.match(/\n[ \t]*exit[ \t]+0[ \t]*\n?[ \t]*$/);
       writeFileSync(f, tail && tail.index !== undefined
-        ? `${t.slice(0, tail.index)}\n${mark}${line}${t.slice(tail.index).replace(/^\n/, '')}`
-        : `${t.replace(/\n*$/, '\n')}${mark}${line}`);
-      say(`tracker-sync: composed the record step onto the existing ${f}${tail ? ' (before its own exit 0)' : ''}`);
+        ? `${h.text.slice(0, tail.index)}\n${mark}${line}${h.text.slice(tail.index).replace(/^\n/, '')}`
+        : `${h.text.replace(/\n*$/, '\n')}${mark}${line}`);
+      say(`tracker-sync: composed the ${h.name} step onto the existing ${f}${tail ? ' (before its own exit 0)' : ''}`);
     } else {
       writeFileSync(f, `#!/bin/sh\n${mark}${line}`);
       say(`tracker-sync: installed ${f}`);
     }
     await run('chmod', ['755', f], {});
+  }
+}
+
+/** Put a checkout back on the store's pointer, and say so only when it moves.
+ *
+ * This is what the post-checkout hook runs. A branch that predates the move
+ * tracks its own tracker folder, so checking it out replaces the pointer with a
+ * real folder; switching away leaves that folder behind, and a tracker started
+ * there would be a second tracker beside the machine's store. Whether such a
+ * folder may be relinked or must be refused is the recipe's to say: it knows its
+ * own tracker's files. Nothing of the store is written here, so no lock is taken.
+ */
+async function relinkRun(flags) {
+  const checkouts = list(flags.checkout).map((c) => resolve(String(c)));
+  if (!checkouts.length) checkouts.push(CURRENT.repoRoot);
+  // Never for the store itself, nor for a worktree parked beside it: the checkout
+  // a hook reports has to be the PROJECT's, and a git worktree of the store (the
+  // mechanism makes one, and that very `worktree add` runs the project's hooks)
+  // has the store as its own top level, whose pointer cannot be a link to itself.
+  const mine = resolve(machineDir(flags, CURRENT.repoRoot));
+  const isOurs = (c) => c === mine || c.startsWith(mine.endsWith('/') ? mine : `${mine}/`);
+  for (const c of checkouts) {
+    if (isOurs(c)) continue;
+    const r = await recipe('pointer.install', { checkout: quote(c) }, { cwd: CURRENT.store });
+    if (r.code !== 0)
+      die(r.code === 127 || r.missing ? 2 : 1, `${c} is not on the store's pointer at ${CURRENT.store}: ${text(r)}`);
+    const said = text(r);
+    if (/relinked|installed|added/.test(said)) say(`tracker-sync: ${c} was put back on the store at ${CURRENT.store}: ${said.split('\n')[0]}`);
   }
 }
 
@@ -778,10 +911,28 @@ async function connectRun(flags) {
     if (isRepo.code !== 0) missing.push(`${c} is not a git repository`);
   }
   if (missing.length) die(2, `connect cannot start: ${missing.join('; ')}`);
+  // A hooks folder inside the repository must never take this machine's own
+  // state path: the record line names an absolute state directory and the
+  // recipe's own path, and it would be committed for every machine's checkout to
+  // read. Asked before anything is written, and refused with the line that fixes
+  // it, which the project puts in its own hook. A hook that already carries the
+  // step is left alone: nothing is written there, so nothing is refused.
+  for (const c of unique) {
+    const plan = await hookPlan(c);
+    if (!plan.inRepo || !plan.missing.length) continue;
+    die(1, `the hooks folder ${plan.dir} of ${c} is inside the repository (core.hooksPath names a folder in the tree), so the step below would commit this machine's own paths - its state directory ${machineDir(CURRENT.flags, repoRoot)} and the recipe ${CURRENT.recipe.path} - into every checkout of every machine. Nothing was written. Add the line to the project's own hook there yourself, or point core.hooksPath at a folder outside the working tree and rerun connect:\n  ${plan.wanted[0].line.trim()}`);
+  }
   if (!flags.offline) {
-    const ping = await git(['ls-remote', '--exit-code', 'origin', CURRENT.ref], { cwd: repoRoot, timeoutMs: 20000 });
-    const any = await git(['ls-remote', '--exit-code', 'origin', 'HEAD'], { cwd: repoRoot, timeoutMs: 20000 });
-    if (any.missing || any.timedOut || (any.code !== 0 && any.code !== 2) || any.code === 2)
+    // Reachability is whether the remote answers at all. `--exit-code` makes git
+    // exit 2 for "no matching ref", which says nothing about the remote: a bare
+    // remote whose HEAD names a branch that does not exist (git init --bare
+    // still defaulting to master while the project pushes main) answers
+    // perfectly, and reading that as unreachable refused a remote connect can
+    // use. The store ref's own absence is not unreachability either: connect
+    // makes the store, and a remote with no store ref yet is the normal first
+    // connect on a fresh remote.
+    const any = await git(['ls-remote', 'origin'], { cwd: repoRoot, timeoutMs: 20000 });
+    if (any.missing || any.timedOut || any.code !== 0)
       die(4, `the remote is unreachable (${text(any).split('\n')[0] || 'no answer'}); the store cannot be brought up to date. Pass --offline to connect anyway, and it will publish when the remote answers`);
   }
   // Everything connect writes happens under the store's one lock: nothing of its
@@ -1023,6 +1174,7 @@ function usage(code = 1) {
     '',
     'commands:',
     '  connect [--checkout <path>]... [--all] [--from-checkout <path>] [--launcher-file <path>] [--machine <name>] [--prefix <id prefix>] [--offline]',
+    '  relink [--checkout <path>]...',
     '  publish [--watch] [--debounce <s>] [--max-age <s>]',
     '  sync [--interval <s>]',
     '  claim --item <id> --holder <holder>',
@@ -1054,6 +1206,7 @@ async function main() {
     return;
   }
   CURRENT.repoRoot = await repoRootOf(flags.repo ? String(flags.repo) : process.cwd());
+  CURRENT.machineKey = await machineKeyOf(CURRENT.repoRoot);
   CURRENT.recipe = await resolveRecipe();
   CURRENT.ref = CURRENT.recipe.ref || DEFAULT_REF;
   // A ref a branch or a tag contains would put the tracker back inside the code
@@ -1069,6 +1222,9 @@ async function main() {
   switch (cmd) {
     case 'connect':
       await connectRun(flags);
+      break;
+    case 'relink':
+      await relinkRun(flags);
       break;
     case 'publish': {
       // publishOnce takes the store lock itself, for its local work only.
