@@ -881,6 +881,15 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
 
 ## Changelog
 
+- **0.107.3** says and proves what connect does when a project keeps its own
+  hooks folder inside the repository, tracked by design and shared by every
+  clone: where every hook the layout needs already carries the marker line for
+  its step, connect accepts the folder as it is and writes nothing into it, so
+  that project connects on every clone and rerun; a hook that is missing or
+  lacks its marker is refused by name, with the line to add. The rule itself
+  did not change in this release — 0.107.2 already accepted such a folder — but
+  nothing said so and no proof covered a tracked folder. Setup's own text now
+  says it, and the proofs check a tracked folder byte for byte.
 - **0.107.2** fixes five gaps a project met in use after moving its tracker off
   the code branches. The store is named after the main checkout of the machine,
   not the checkout a command happened to run in, so every linked worktree of one

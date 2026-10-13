@@ -453,6 +453,16 @@ const BREAKS = [
       'die(1, `the hooks folder ${plan.dir}', 'if (false) die(1, `the hooks folder ${plan.dir}') }),
   },
   {
+    name: 'hooks-accepted-without-the-marker',
+    cases: ['16-hooks-inside-the-repository-refused'],
+    // The acceptance's own guard, undone: a hook that lacks its marker line reads
+    // as one that already carries the step, so a bare project hook is taken and
+    // the folder is written into instead of refused.
+    apply: (s) => ({ mech: breakByLiteral('hooks-marker-ignored', s.mech,
+      'present: text !== null && text.includes(HOOK_MARKS[name]) };',
+      'present: text !== null }; /* deliberate break: the marker is ignored */') }),
+  },
+  {
     name: 'record-keeps-git-hook-environment',
     cases: ['17-record-from-a-hook-and-already-recorded'],
     apply: (s) => ({ mech: breakByLiteral('hook-env', s.mech,
@@ -1272,24 +1282,38 @@ const CASES = {
       + ', connect exit ' + c.code + ' ' + (c.stderr || '').split('\n')[0].slice(0, 120));
   },
 
-  // 16. A hooks folder inside the repository: connect refuses and prints the line
-  // to add by hand, and writes nothing into the tracked folder.
+  // 16. A hooks folder inside the repository: a project's own hooks, kept tracked
+  // by design and shared by every clone. connect accepts the folder when every
+  // hook the layout needs already carries the marker line connect itself writes
+  // for that step: it writes nothing there and the tracked files stay byte for
+  // byte as they were. A hook that is missing or lacks its marker is refused, exit
+  // 1, named with the line for the project to add by hand.
   '16-hooks-inside-the-repository-refused': async (ctx) => {
     const hooks = join(ctx.codeA, 'hooks');
+    const names = ['post-commit', 'post-merge', 'post-checkout'];
     mkdirSync(hooks, { recursive: true });
     writeFileSync(join(hooks, 'post-commit'), '#!/bin/sh\necho the project\'s own hook\n');
     sh('chmod', ['+x', join(hooks, 'post-commit')]);
     sh('git', ['-C', ctx.codeA, 'config', 'core.hooksPath', 'hooks']);
-    const before = readFileSync(join(hooks, 'post-commit'), 'utf8');
+    // the whole folder, byte for byte: what the acceptance and the refusal are
+    // judged on is the hooks' content, and neither may write into it
+    const readFolder = () => Object.fromEntries(names.map((n) => [n, existsSync(join(hooks, n)) ? readFileSync(join(hooks, n), 'utf8') : null]));
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const before = readFolder();
     // the refusal is read whole, not through the bring-up summary: the case pastes
     // back exactly what it prints
     const r = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA], { machine: 'A' });
-    const after = readFileSync(join(hooks, 'post-commit'), 'utf8');
-    const added = ['post-merge', 'post-checkout'].filter((n) => existsSync(join(hooks, n)));
+    const afterRefusal = readFolder();
+    const added = names.filter((n) => before[n] === null && afterRefusal[n] !== null);
     const blocks = [...r.out.matchAll(/^\s{2}(post-[a-z]+):\n\s+(# shady2k[^\n]*)\n\s+(node [^\n]*)$/gm)];
-    record('16-hooks-inside-the-repository-refused', r.code === 1 && after === before && added.length === 0 && blocks.length === 3,
-      'connect exit ' + r.code + ', the tracked hook is unchanged: ' + (after === before)
+    record('16-hooks-inside-the-repository-refused', r.code === 1 && same(afterRefusal, before) && added.length === 0 && blocks.length === 3,
+      'connect exit ' + r.code + ', the whole folder is unchanged: ' + same(afterRefusal, before)
       + ', files written beside it: ' + JSON.stringify(added) + ', recognizable steps printed: ' + blocks.length);
+    // Every step it prints belongs to a hook of this folder and names it, because
+    // the check reads the marker: the project is told which hook to put it in.
+    const named = [...r.out.matchAll(/^\s{2}(post-[a-z]+):/gm)].map((m) => m[1]);
+    record('16-the-refusal-names-each-hook-that-lacks-its-marker', names.every((n) => named.includes(n)),
+      'the refusal names: [' + named.join(', ') + '] of the hooks the layout needs [' + names.join(', ') + ']');
     // The repair it prints has to complete the setup, marker line and command
     // together: a command without the marker would be refused again, and connect
     // could never finish in this project.
@@ -1297,13 +1321,30 @@ const CASES = {
       writeFileSync(join(hooks, name), `#!/bin/sh\n${mark}\n${line}\n`);
       sh('chmod', ['+x', join(hooks, name)]);
     }
+    const pasted = readFolder();
+    // the hooks are the project's own files, tracked: connect must leave them
+    // exactly as git has them, so a connect on every clone and rerun commits
+    // nothing and the same hooks serve every machine
+    sh('git', ['-C', ctx.codeA, 'add', 'hooks']);
+    sh('git', ['-C', ctx.codeA, '-c', 'user.name=proof', '-c', 'user.email=proof@local', '-c', 'core.hooksPath=/nonexistent-hooks', 'commit', '-qm', 'the project keeps its hooks tracked']);
     const again = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA], { machine: 'A' });
-    const pasted = blocks.every(([, name, mark, line]) => {
-      const t = readFileSync(join(hooks, name), 'utf8');
-      return t.includes(mark) && t.includes(line);
-    });
-    record('16-the-printed-repair-completes-connect', again.code === 0 && pasted,
-      'connect exit ' + again.code + ', the project\'s own hooks carry what was printed: ' + pasted + ' ' + (again.stderr || '').split('\n')[0].slice(0, 120));
+    const tracked = sh('git', ['-C', ctx.codeA, 'status', '--porcelain', '--', 'hooks']).stdout.trim() === '';
+    record('16-a-tracked-folder-that-carries-the-step-is-accepted', again.code === 0 && same(readFolder(), pasted) && tracked,
+      'connect exit ' + again.code + ', the tracked hooks are byte for byte as they were: ' + same(readFolder(), pasted)
+      + ', git reports the folder clean: ' + tracked + ' ' + (again.stderr || '').split('\n')[0].slice(0, 120));
+    // One needed hook loses its marker, and nothing else: refused, that hook named
+    // alone, the other tracked hooks untouched.
+    const lineOf = Object.fromEntries(blocks.map(([, n, , line]) => [n, line]));
+    writeFileSync(join(hooks, 'post-merge'), `#!/bin/sh\n${lineOf['post-merge'] || 'exit 0'}\n`);
+    sh('chmod', ['+x', join(hooks, 'post-merge')]);
+    const beforeOne = readFolder();
+    const one = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA], { machine: 'A' });
+    const afterOne = readFolder();
+    const namedOne = [...one.out.matchAll(/^\s{2}(post-[a-z]+):/gm)].map((m) => m[1]);
+    record('16-a-needed-hook-without-its-marker-is-refused-by-name',
+      one.code === 1 && namedOne.join(',') === 'post-merge' && same(afterOne, beforeOne),
+      'connect exit ' + one.code + ', named: [' + namedOne.join(', ') + '], the folder is unchanged: ' + same(afterOne, beforeOne)
+      + ' ' + (one.stderr || '').split('\n')[0].slice(0, 120));
     // Git's own metadata directory is not the repository's files: pointing the
     // hooks at it is the default folder, and it was accepted before this check
     sh('git', ['-C', ctx.codeA, 'config', 'core.hooksPath', '.git/hooks']);

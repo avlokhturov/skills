@@ -161,10 +161,15 @@ mechanism is what meets them, and this skill installs it:
 - **Keep one machine's paths out of every machine's checkout, and know what a
   remote that answers is.** The record and relink steps are composed onto the
   checkout's own hooks, never written into a folder inside the repository: where
-  `core.hooksPath` names a folder in the tree, connect refuses and prints the line
-  for the project to add to its own hook, because that line carries this machine's
-  state directory and the recipe's path, which no other machine can use. Every
-  command the mechanism runs runs without git's own hook environment (`GIT_DIR`,
+  `core.hooksPath` names a folder in the tree, connect writes nothing there. A
+  folder of the project's own that carries, in every hook the layout needs, the
+  marker line connect writes for that step is accepted as it is, so a project that
+  keeps its hooks tracked by design and shared by every clone connects on every
+  clone and rerun. A hook that is missing or lacks its marker is refused (exit 1),
+  named with the line for the project to add to that hook, because the line
+  carries this machine's state directory and the recipe's path, which no other
+  machine can use. Every command the mechanism runs runs without git's own hook
+  environment (`GIT_DIR`,
   `GIT_INDEX_FILE`, `GIT_WORK_TREE` and the rest of it): a step started from a hook
   must read and write the store, never the code checkout the hook came from.
   A revision that is already recorded is success — the command says so and writes
