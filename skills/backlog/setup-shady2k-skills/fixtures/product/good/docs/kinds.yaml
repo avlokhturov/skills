@@ -52,9 +52,9 @@ kinds:
     links:
       - field: Grew from
         targets:
-          - VIS
-          - S
-          - Q
+          - Vision
+          - Source
+          - Open question
         backlink: Grew into
         cardinality: many
         required: true
@@ -66,16 +66,16 @@ kinds:
     links:
       - field: Concerns
         targets:
-          - VIS
-          - PRA
-          - S
-          - H
-          - US
-          - UC
-          - FR
-          - Q
-          - P
-          - R
+          - Vision
+          - Practice
+          - Source
+          - Hypothesis
+          - User story
+          - Use case
+          - Product requirement
+          - Open question
+          - Prototype
+          - Result
         backlink: Concerned by
         cardinality: many
         required: true
@@ -87,7 +87,7 @@ kinds:
     links:
       - field: Tests
         targets:
-          - H
+          - Hypothesis
         backlink: Tested by
         cardinality: many
         required: true
@@ -99,7 +99,7 @@ kinds:
     links:
       - field: Of
         targets:
-          - P
+          - Prototype
         backlink: Observed in
         cardinality: many
         required: true
@@ -111,8 +111,8 @@ kinds:
     links:
       - field: Grew from
         targets:
-          - VIS
-          - H
+          - Vision
+          - Hypothesis
         backlink: Grew into
         cardinality: many
         required: true
@@ -124,7 +124,7 @@ kinds:
     links:
       - field: Serves
         targets:
-          - US
+          - User story
         backlink: Served by
         cardinality: many
         required: true
@@ -136,8 +136,8 @@ kinds:
     links:
       - field: Serves
         targets:
-          - UC
-          - US
+          - Use case
+          - User story
         backlink: Served by
         cardinality: many
         required: true

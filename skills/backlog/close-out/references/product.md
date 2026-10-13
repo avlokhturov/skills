@@ -220,9 +220,19 @@ folder of its kind by default), `stage` (one of those stages) and `hint`
 declare them, its `statuses` (the words its documents may carry; the
 practice record's are `active` and `retired`, the only ones a chain
 document's check reads: everything else on a chain document is computed,
-never written) and its `links` (the declared links, above the forms at the chain). The stages hold no
-fixed kinds; verify, release and operate keep their records where the set
-records them, and so hold none of these pages. Setup writes it where the
+never written) and its `links` (the declared links, above the forms at the
+chain; each link's targets name the kinds by their word, the way the
+engine's own examples write them). The stages hold no fixed kinds; verify,
+release and operate keep their records where the set records them, and so
+hold none of these pages. The contract's reserved places are read as data,
+never refused and never dropped, and the set writes none of them: a kind
+may carry `storage` (the form it is kept in; the set's kinds are
+`document`) and, riding the reserved `fact` form, an `evidence` map
+(source, ref, record) — an evidence shape without `storage: fact` is
+refused, by the engine's own words — and the manifest may carry the
+reserved `goals:` section of maturity levels. This engine version serves
+documents only, so the set's reader reports each reserved place it reads
+as a note that names it. Setup writes it where the
 product holds none and reports one that stands; the product may rename
 the kinds or retune the hints in its own language; the prefix and the
 stage are the forms' words, and the folder is the default — a chain
@@ -235,9 +245,12 @@ published schema at the version it targets — in the set's own repository,
 `test/schemas/product-registry.schema.json` — validating what it writes
 with its own code, so no repository depends on another. The set's reader
 refuses what it refuses (the shapes, the places, the words, a target that
-names no kind's id prefix, a named version other than 1 with that
-version's name), and a registry the writer renders is one the copy
-passes. The published example, written by the same writer, is this
+names no kind of the registry, an evidence shape without its `storage:
+fact`, a named version other than 1 with that version's name), and a
+registry the writer renders is one the copy passes — and one the engine's
+own contract check reads: the set's rendered registry was verified against
+the engine's published schema at the version the set targets, once at
+acceptance, by the engine's own check run outside this repository. The published example, written by the same writer, is this
 repository's example product's `docs/kinds.yaml`
 (`fixtures/product/good/`).
 

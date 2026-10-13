@@ -189,7 +189,7 @@ test("the validator refuses what the schema refuses, by its own words", async ()
   // type the word is not, and a word the minimum length cuts short.
   refuse("contract", (m) => { m.contract = 2; });
   refuse("heroKind", (m) => { m.kinds[0].heroKind = true; });
-  refuse("statuses", (m) => { m.kinds[17].statuses = []; });
+  refuse("a list is read here", (m) => { m.kinds[17].statuses = "draft"; });
   refuse("targets", (m) => { delete m.kinds[4].links[0].targets; });
   refuse("9bad", (m) => { m.stages.push({ id: "9bad" }); });
   refuse("often", (m) => { m.kinds[4].links[0].cardinality = "often"; });
@@ -199,4 +199,7 @@ test("the validator refuses what the schema refuses, by its own words", async ()
   refuse("letters", (m) => { m.kinds[4].hint = ""; });
   refuse("the shape it must match is", (m) => { m.kinds[17].statuses[0] = "9bad"; });
   refuse("name", (m) => { m.kinds[4].name = "9bad"; });
+  // The contract's own refusal at v1: the evidence shape rides the fact
+  // storage form (the schema reads storage; the check carries the rule).
+  refuse("storage", (m) => { m.kinds[4].storage = "not-a-form"; });
 });

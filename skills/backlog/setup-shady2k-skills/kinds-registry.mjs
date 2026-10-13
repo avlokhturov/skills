@@ -20,12 +20,24 @@
  * next step for a person mid-stage, in the set's own wording) — and may
  * declare its `statuses` (the words its documents may carry; the set's
  * practice record carries the two its check reads) and its `links`: each
- * link is the kind's field name and the kinds its targets name, the
- * backlink's word for the reader on the target's page, and whether the link
- * is required. The stages are the set's life cycle, in its own order, as
+ * link is the kind's field name, the kinds its targets name (by their
+ * word for a reader, the way the engine's own examples write targets —
+ * the reader also reads a target that names a kind by its id prefix, so
+ * an older registry still reads), the backlink's word for the reader on
+ * the target's page, and whether the link is required. The stages are the set's life cycle, in its own order, as
  * `id:` entries, with no fixed kinds: verify, release and operate keep
  * their records where the set records them, so they hold none of these
  * pages.
+ *
+ * The contract's reserved places are read as data, never refused and never
+ * dropped, the way the engine reads them: a kind may carry `storage` (the
+ * word `document`, the form the set's kinds are kept in, or a reserved
+ * form the engine names) and, riding the `fact` form, its `evidence` field
+ * names (source, ref, record); the manifest may carry the reserved
+ * `goals:` section (maturity levels, the 0021 amendment). This engine
+ * version serves documents only: the reader returns each reserved place it
+ * read as a note that names it, and refuses an evidence shape that stands
+ * without `storage: fact`, by the engine's own words.
  *
  * A product may rename the kinds or retune their hints in its own
  * language; the id prefix and the stage are the set's forms' words, and the
@@ -89,19 +101,19 @@ export const KINDS = [
   { name: "Milestone", prefix: "MIL", folder: "docs/milestones", stage: "idea", hint: "the charter of one version — outcomes, observable criteria, exclusions and a budget — agreed with the owner before its work runs" },
   { name: "Source", prefix: "S", folder: "docs/sources", stage: "idea", hint: "what people actually said, kept with consent; the product's documents quote it by place" },
   { name: "Hypothesis", prefix: "H", folder: "docs/hypotheses", stage: "idea", hint: "a belief worth testing — its test, its metric, its threshold; the result is read onto the record when the test comes due",
-    links: [{ field: "Grew from", targets: ["VIS", "S", "Q"], backlink: "Grew into", cardinality: "many", required: true }] },
+    links: [{ field: "Grew from", targets: ["Vision", "Source", "Open question"], backlink: "Grew into", cardinality: "many", required: true }] },
   { name: "Open question", prefix: "Q", folder: "docs/questions", stage: "idea", hint: "what is not known, with who can answer and what settles it; an answer, or a not-applicable with a reason, closes it",
-    links: [{ field: "Concerns", targets: ["VIS", "PRA", "S", "H", "US", "UC", "FR", "Q", "P", "R"], backlink: "Concerned by", cardinality: "many", required: true }] },
+    links: [{ field: "Concerns", targets: ["Vision", "Practice", "Source", "Hypothesis", "User story", "Use case", "Product requirement", "Open question", "Prototype", "Result"], backlink: "Concerned by", cardinality: "many", required: true }] },
   { name: "Prototype", prefix: "P", folder: "docs/prototypes", stage: "idea", hint: "code that tests one hypothesis and is thrown away once its results are kept",
-    links: [{ field: "Tests", targets: ["H"], backlink: "Tested by", cardinality: "many", required: true }] },
+    links: [{ field: "Tests", targets: ["Hypothesis"], backlink: "Tested by", cardinality: "many", required: true }] },
   { name: "Result", prefix: "R", folder: "docs/results", stage: "idea", hint: "what was observed against the threshold — confirmed, refuted or unclear, and why",
-    links: [{ field: "Of", targets: ["P"], backlink: "Observed in", cardinality: "many", required: true }] },
+    links: [{ field: "Of", targets: ["Prototype"], backlink: "Observed in", cardinality: "many", required: true }] },
   { name: "User story", prefix: "US", folder: "docs/stories", stage: "requirements", hint: "one slice of value for one role; it accepts through the use cases and requirements that grew from it",
-    links: [{ field: "Grew from", targets: ["VIS", "H"], backlink: "Grew into", cardinality: "many", required: true }] },
+    links: [{ field: "Grew from", targets: ["Vision", "Hypothesis"], backlink: "Grew into", cardinality: "many", required: true }] },
   { name: "Use case", prefix: "UC", folder: "docs/use-cases", stage: "requirements", hint: "one goal with its main success scenario; the product requirements it serves are written from it",
-    links: [{ field: "Serves", targets: ["US"], backlink: "Served by", cardinality: "many", required: true }] },
+    links: [{ field: "Serves", targets: ["User story"], backlink: "Served by", cardinality: "many", required: true }] },
   { name: "Product requirement", prefix: "FR", folder: "docs/requirements", stage: "requirements", hint: "one thing a user can observe; the capability specs reference it by id, never restate it",
-    links: [{ field: "Serves", targets: ["UC", "US"], backlink: "Served by", cardinality: "many", required: true }] },
+    links: [{ field: "Serves", targets: ["Use case", "User story"], backlink: "Served by", cardinality: "many", required: true }] },
   { name: "Decision", prefix: "DEC", folder: "docs/decisions", stage: "design", hint: "a consequential, hard-to-reverse choice with its reason kept where a reader needs it" },
   { name: "Design record", prefix: "DES", folder: "docs/changes", stage: "design", hint: "one change's design — drivers, options traded, the recorded decision — written before code" },
   { name: "Architecture", prefix: "ARC", folder: "docs/system/architecture.md", stage: "design", hint: "how the system does it — the parts, their zones and the boundaries, kept with the code's shape" },
@@ -289,8 +301,12 @@ export function parseKinds(text, file) {
   if (i >= lines.length) return fail(file, Math.max(lines.length, 1), contract === undefined ? "the registry is empty: it carries the stages and the kinds" : "the registry ends after its contract version: it carries the stages and the kinds");
 
   // `stages:` and its list of `{ id }` entries, each at the same leading spaces.
-  if (i >= lines.length || !/^stages:\s*$/.test(trim(lines[i])))
+  // A flow map (`stages: {x: y}`) is the schema's "must be array": the same
+  // refusal the engine's check carries, at the place it stands.
+  if (i >= lines.length || !/^stages:/.test(trim(lines[i])))
     return fail(file, i < lines.length ? i + 1 : Math.max(lines.length, 1), "the registry begins with something other than `stages:` and the life cycle's order under it");
+  if (!/^stages:\s*$/.test(trim(lines[i])))
+    return fail(file, i + 1, `the stages read ${JSON.stringify(trim(lines[i]).slice("stages:".length).trim())}: a list is read here — each stage stands as "- id: <stage>" on its own line, and an inline flow shape is not read`);
   const stagesLine = i + 1;
   i = skip(i + 1);
   if (i >= lines.length || !/^\s*-\s/.test(lines[i]))
@@ -315,8 +331,8 @@ export function parseKinds(text, file) {
       const key = pair[1];
       if (key === "id") {
         const id = scalar(pair[2].trim(), field.line);
-        if (id.value === "" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(id.value))
-          return fail(file, field.line, `the stage id "${id.value}" is not a stage name: letters, digits, dashes and underscores, starting with a letter`);
+        if (id.value === "" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(id.value) || /^"/.test(pair[2].trim()))
+          return fail(file, field.line, `the stage id ${pair[2].trim() || '""'} is not a stage name: letters, digits, dashes and underscores, starting with a letter — a quoted or empty word is no stage's name`);
         if ("id" in map) return fail(file, field.line, `the stage carries "id" on it twice — each stage is given once`);
         map.id = id;
       } else if (key === "name") {
@@ -340,24 +356,37 @@ export function parseKinds(text, file) {
   // fields it declares, each naming its target kinds). Plain words: an
   // inline `[a, b]` is a shape the reader does not read, so a list stands
   // as lines under its name.
-  if (i >= lines.length || !/^kinds:\s*$/.test(trim(lines[i])))
+  if (i >= lines.length || !/^kinds:/.test(trim(lines[i])))
     return fail(file, i < lines.length ? i + 1 : Math.max(lines.length, 1), "the stages list is not followed by `kinds:` with the product's kinds under it");
+  if (!/^kinds:\s*$/.test(trim(lines[i])) && !/^kinds:\s*\[\s*\]\s*$/.test(trim(lines[i]))) {
+    // A flow shape at the kinds place (`kinds: {x: y}`) is the schema's
+    // "must be array": the refusal names what stands there.
+    return fail(file, i + 1, `the kinds read ${JSON.stringify(trim(lines[i]).slice("kinds:".length).trim())}: a list is read here — each kind stands as a "- name: <name>" item, and an inline flow shape is not read`);
+  }
   const kindsLine = i + 1;
+  const kindsEmptyInline = /^kinds:\s*\[\s*\]\s*$/.test(trim(lines[i]));
   i = skip(i + 1);
-  if (i >= lines.length || !/^\s*-\s/.test(lines[i]))
-    return fail(file, kindsLine, "`kinds:` holds no kinds — each stands as a `- name: <name>` item with the kind's fields and lists under it");
-  const kinds = [];
   const wordScalar = (word, what, line) => {
     const read = scalar(word, line);
     if (!/^[A-Za-z][A-Za-z0-9 _-]*$/.test(read.value))
       return fail(file, line, `the ${what} reads "${read.value}": a reader's word of letters, digits, spaces, dashes and underscores, starting with a letter`);
     return read;
   };
+  const kinds = [];
+  if (kindsEmptyInline) {
+    // An empty kinds list reads as the product keeping no kinds: the
+    // engine reads it (0 kinds), the set's rules judge it below.
+  } else if (i >= lines.length || !/^\s*-\s/.test(lines[i])) {
+    return fail(file, kindsLine, "`kinds:` holds no kinds — each stands as a `- name: <name>` item with the kind's fields and lists under it, and an empty product carries `kinds: []`");
+  }
+  {
+
   while (i < lines.length && /^\s*-\s/.test(lines[i])) {
     const kindLead = lines[i].length - lines[i].trimStart().length;
     const map = Object.create(null);
     let statuses;
     let links;
+    let evidence;
     const first = lines[i].trimStart().replace(/^-\s*/, "").trimStart();
     if (first !== "") {
       // The item's first field may stand on the dash's own line; it reads
@@ -366,10 +395,10 @@ export function parseKinds(text, file) {
       const at = i + 1;
       if (!pair)
         return fail(file, at, "an item of `kinds:` opens with something that is no kind field — a kind stands as `- name: <name>` with its fields under it");
-      if (pair[1] === "statuses" || pair[1] === "links")
+      if (pair[1] === "statuses" || pair[1] === "links" || pair[1] === "evidence")
         return fail(file, at, `the kind's ${pair[1]} holds its list as lines under it — the item opens with its name, and the list stands under it`);
-      if (!FIELDS.includes(pair[1]))
-        return fail(file, at, `a kind field has no name the registry knows on it — a kind carries ${FIELDS.join(", ")}, and its statuses and links under it`);
+      if (!FIELDS.includes(pair[1]) && pair[1] !== "storage")
+        return fail(file, at, `a kind field has no name the registry knows on it — a kind carries ${FIELDS.join(", ")}, its statuses, its links, its storage form and its evidence under it`);
       map[pair[1]] = scalar(pair[2], at);
       if (map[pair[1]].value === "") return fail(file, at, `the kind's "${pair[1]}" holds no value — ${FIELD_WORDS[pair[1]]}`);
       if ((pair[1] === "name" || pair[1] === "stage") && !/^[A-Za-z][A-Za-z0-9 _-]*$/.test(map[pair[1]].value))
@@ -385,7 +414,48 @@ export function parseKinds(text, file) {
       if (!pair)
         return fail(file, line, `under a kind stands a line that is no kind field and value — a kind carries ${FIELDS.join(", ")}, and its lists under it`);
       const key = pair[1];
+      if (key === "evidence") {
+        // The evidence shape is a map, not a list: source, and its
+        // optional ref and record, each naming the document's field the
+        // fact carries that provenance in. The schema requires source and
+        // refuses a field it does not know.
+        if ("evidence" in map) return fail(file, line, `the kind carries "${key}" on it twice — each field is given once`);
+        let j = skip(i + 1);
+        const fields = [];
+        while (j < lines.length && /^\s+\S/.test(lines[j]) && lines[j].length - lines[j].trimStart().length > lines[line - 1].length - lines[line - 1].trimStart().length) {
+          const subLine = j + 1;
+          const sub = code(lines[j]).trim();
+          const subPair = /^([a-zA-Z-]+):\s*(.*)$/.exec(sub);
+          if (!subPair)
+            return fail(file, subLine, "an evidence entry is no field and value — the evidence shape carries source, and its optional ref and record");
+          if (!["source", "ref", "record"].includes(subPair[1]))
+            return fail(file, subLine, `the evidence shape carries "${subPair[1]}", which it does not know — its fields are source, ref, record`);
+          if (fields.some((e) => e.field === subPair[1]))
+            return fail(file, subLine, `the evidence carries "${subPair[1]}" on it twice — each field is given once`);
+          if (subPair[2].trim() === "")
+            return fail(file, subLine, `the evidence's "${subPair[1]}" holds no value — the document's field name the fact carries it in`);
+          const read = wordScalar(subPair[2], `evidence's ${subPair[1]}`, subLine);
+          if (read.ok === false) return read;
+          fields.push({ field: subPair[1], value: read.value, line: subLine });
+          j++;
+        }
+        if (fields.length === 0)
+          return fail(file, line, "the kind's evidence holds no field — the shape carries source, and its optional ref and record");
+        if (!fields.some((e) => e.field === "source"))
+          return fail(file, line, `the evidence shape carries no "source" — the schema requires it: the document's field naming the source system`);
+        evidence = { key: line, fields };
+        i = j;
+        continue;
+      }
       if (key === "statuses" || key === "links") {
+        if (/^\[\s*\]\s*$/.test(pair[2].trim())) {
+          // An empty inline list reads as none: the engine reads it
+          // (statuses: [] is 0 statuses), the set's rules judge it below.
+          if (key === "statuses") statuses = [];
+          else links = [];
+          i++;
+          continue;
+        }
         if (pair[2].trim() !== "")
           return fail(file, line, `the kind's ${key} holds its list as lines under it, one entry on a line each — an inline [a, b] is a shape this reader does not read, and the registry is plain words`);
         if (key === "statuses" && statuses !== undefined)
@@ -487,8 +557,19 @@ export function parseKinds(text, file) {
         else links = entries;
         continue;
       }
+      if (key === "storage") {
+        if (pair[2].trim() === "")
+          return fail(file, line, `the kind's "storage" holds no value — the word document, or a reserved form the engine names`);
+        if ("storage" in map) return fail(file, line, `the kind carries "storage" on it twice — each field is given once`);
+        const read = scalar(pair[2], line);
+        if (!["document", "task", "model-element", "component", "fact"].includes(read.value))
+          return fail(file, line, `the kind's storage reads ${JSON.stringify(read.value)}: the contract's storage forms are document, task, model-element, component, fact`);
+        map.storage = read;
+        i++;
+        continue;
+      }
       if (!FIELDS.includes(key))
-        return fail(file, line, `a kind field has no name the registry knows on it — a kind carries ${FIELDS.join(", ")}, and its statuses and links under it`);
+        return fail(file, line, `a kind field has no name the registry knows on it — a kind carries ${FIELDS.join(", ")}, its statuses, its links, its storage form and its evidence under it`);
       if (key in map) return fail(file, line, `the kind carries "${key}" on it twice — each field is given once`);
       map[key] = scalar(pair[2], line);
       if (map[key].value === "") return fail(file, line, `the kind's "${key}" holds no value — ${FIELD_WORDS[key]}`);
@@ -499,13 +580,88 @@ export function parseKinds(text, file) {
     }
     map.statuses = statuses;
     map.links = links;
+    map.evidence = evidence;
     kinds.push(map);
     i = skip(i);
+  }
+  }
+
+  // The reserved `goals:` section, where it stands (the 0021 amendment):
+  // maturity levels over the graph, per perspective. The engine keeps the
+  // section as data and names it reserved-but-unimplemented when it
+  // renders, never refusing and never dropping it; this reader reads it
+  // the same way and carries it, so the shape rules below verify it.
+  let goals;
+  if (i < lines.length && /^goals:\s*$/.test(trim(lines[i]))) {
+    const goalsLine = i + 1;
+    i = skip(i + 1);
+    if (i >= lines.length || !/^\s*-\s/.test(lines[i]))
+      return fail(file, goalsLine, "the reserved `goals:` section holds no level — each level stands as `- name: <name>` with its rules under it");
+    goals = [];
+    while (i < lines.length && /^\s*-\s/.test(lines[i])) {
+      const lead = lines[i].length - lines[i].trimStart().length;
+      const entryLine = i + 1;
+      const first = lines[i].trimStart().replace(/^-\s*/, "").trimStart();
+      i++;
+      const fields = [];
+      if (first !== "") fields.push({ word: first, line: entryLine });
+      while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i++;
+      while (i < lines.length && /^\s+\S/.test(lines[i]) && lines[i].length - lines[i].trimStart().length > lead) {
+        fields.push({ word: lines[i].trim(), line: i + 1 });
+        i++;
+        while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i++;
+      }
+      const level = Object.create(null);
+      let rules;
+      let x = 0;
+      while (x < fields.length) {
+        const field = fields[x];
+        const pair = /^([a-zA-Z-]+):\s*(.*)$/.exec(field.word);
+        if (!pair) return fail(file, field.line, "a goals level's line is no field and value — a level carries name, its optional perspective and its rules");
+        const key = pair[1];
+        if (key === "rules") {
+          if (pair[2].trim() !== "")
+            return fail(file, field.line, "the level's rules hold their list as lines under it, one rule on a line each — the registry is plain words");
+          if (rules !== undefined) return fail(file, field.line, `the level carries "rules" on it twice — each field is given once`);
+          // The rules' lines were collected into `fields` as this level's
+          // own lines; they follow the rules: line itself.
+          const ruleLead = lines[field.line - 1].length - lines[field.line - 1].trimStart().length;
+          const ruleLines = [];
+          let y = x + 1;
+          while (y < fields.length) {
+            const rulePair = /^-\s+(.*)$/.exec(fields[y].word) || /^\s*-\s(.*)$/.exec(fields[y].word);
+            const raw = fields[y].word;
+            if (!/^-/.test(raw)) break;
+            const rule = scalar(raw.replace(/^\s*-\s*/, ""), fields[y].line);
+            if (rule.value === "") return fail(file, fields[y].line, "a rule holds no words — a rule names a count, a coverage, a provenance agreement or an approval by role");
+            ruleLines.push(rule);
+            y++;
+          }
+          if (ruleLines.length === 0)
+            return fail(file, field.line, "the level's rules hold no rule — the list is refused empty");
+          rules = ruleLines;
+          x = y;
+          continue;
+        }
+        if (!["name", "perspective"].includes(key))
+          return fail(file, field.line, `a goals level carries "${key}", which it does not know — a level carries name, its optional perspective and its rules`);
+        if (key in level) return fail(file, field.line, `the level carries "${key}" on it twice — each field is given once`);
+        const read = wordScalar(pair[2], `level's ${key}`, field.line);
+        if (read.ok === false) return read;
+        level[key] = read;
+        x++;
+      }
+      if (!level.name) return fail(file, fields.length ? fields[0].line : entryLine, "a goals level carries no `name:`");
+      if (!rules) return fail(file, entryLine, "a goals level carries no `rules:` — the rules are what the level grants");
+      level.rules = rules;
+      goals.push(level);
+      i = skip(i);
+    }
   }
 
   if (i < lines.length && trim(lines[i]) !== "")
     return fail(file, i + 1, "the registry holds a line outside stages and kinds");
-  return { ok: true, value: { contract, stages, kinds } };
+  return { ok: true, value: { contract, stages, kinds, goals } };
 }
 
 /** Where a kind's own record stands: the kind's first field's line. */
@@ -534,6 +690,27 @@ export function verifyRegistry(text, file) {
   const notes = [];
   const out = (line, message) => `${file}:${line}: ${message}`;
 
+  // The contract's refusal the engine keeps: an evidence shape rides the
+  // fact storage form. By the engine's own words.
+  (value.kinds ?? []).forEach((kind) => {
+    if (kind.evidence !== undefined && (kind.storage?.value ?? 'document') !== 'fact')
+      findings.push(out(kind.evidence.key, "the evidence shape rides the fact storage form: a kind carrying its evidence fields declares \"storage: fact\""));
+  });
+
+  // The reservations the engine names (the 0021 amendment): a kind stored
+  // in a form this engine version does not serve, an imported fact's
+  // evidence shape, the reserved goals section. Each is reported as a
+  // note that names it — kept as data, never dropped, never a refusal.
+  (value.kinds ?? []).forEach((kind) => {
+    const form = kind.storage?.value ?? 'document';
+    if (form === 'document') return;
+    notes.push(out(kind.storage.line, `the kind "${kind.name?.value ?? ""}" declares the storage form "${form}"; this engine version serves documents only — the kind and its records are kept and named, never dropped`));
+    if (kind.evidence !== undefined)
+      notes.push(out(kind.evidence.key, `the kind "${kind.name?.value ?? ""}" carries its evidence (source, ref, record); this engine version does not read imported graphs — the shape is kept as data, never dropped`));
+  });
+  if (value.goals !== undefined)
+    notes.push(out(1, 'the manifest carries the reserved goals section; this engine version does not compute maturity levels — the section is kept as data, never dropped'));
+
   const stageNames = new Set(value.stages.map((s) => s.id.value));
   const seenStage = new Map();
   for (const stage of value.stages) {
@@ -546,7 +723,10 @@ export function verifyRegistry(text, file) {
   for (const kind of value.kinds) {
     for (const field of FIELDS)
       if (!kind[field])
-        findings.push(out(anchorOf(kind, firstKindLine(value)), `a kind carries no "${field}" — it is ${FIELD_WORDS[field]}`));
+        // The schema requires all five fields (the engine's "must have
+        // required properties name"): a kind missing one is refused, not
+        // reported beside an otherwise green read.
+        return { ok: false, findings: [out(anchorOf(kind, firstKindLine(value)), `a kind carries no "${field}" — it is ${FIELD_WORDS[field]}`)], notes: [] };
     if (kind.prefix?.value) {
       if (!/^[A-Z]{1,4}$/.test(kind.prefix.value))
         findings.push(out(kind.prefix.line, `"${kind.prefix.value}" is not an id prefix: one to four capitals (A-Z)`));
@@ -589,8 +769,13 @@ export function verifyRegistry(text, file) {
         // whose target names no kind here would be a finding where the wiki
         // reads a document with it, and this read says it first.
         for (const target of link.targets) {
-          if (!value.kinds.some((other) => other.prefix?.value === target.value))
-            findings.push(out(target.line, `the ${kind.name?.value ?? "kind"}'s link "${link.field.value}" names ${JSON.stringify(target.value)}: no kind of the registry carries that id prefix — a target names a kind by its prefix, so the wiki shows a link to it instead of a finding`));
+          // The engine matches a target against the kinds' names (its
+          // refusal's own words); the set's products name the kinds by
+          // their reader's word, so the prefix is read as the same
+          // declaration only when no kind carries that name.
+          if (value.kinds.some((other) => other.name?.value === target.value)) continue;
+          if (value.kinds.some((other) => other.prefix?.value === target.value)) continue;
+          findings.push(out(target.line, `the ${kind.name?.value ?? "kind"}'s link "${link.field.value}" names ${JSON.stringify(target.value)}: no kind of the registry carries that name or id prefix — a target names a kind the registry declares`));
         }
       }
     }

@@ -11,6 +11,40 @@
       "const": 1,
       "description": "The contract version the registry is written against; this schema publishes version 1."
     },
+    "goals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "rules"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9 _-]*$",
+            "minLength": 1
+          },
+          "perspective": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9 _-]*$",
+            "minLength": 1
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "description": "The rules the level holds; a rule names a count, a coverage, a provenance agreement or an approval by role."
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "description": "The reserved goals section: maturity levels over the graph, per perspective (the 0021 amendment). This engine version keeps the section and names it as reserved-but-unimplemented when it renders; never a silent unknown section."
+    },
     "stages": {
       "type": "array",
       "items": {
@@ -76,8 +110,7 @@
               "pattern": "^[A-Za-z][A-Za-z0-9 _-]*$",
               "minLength": 1
             },
-            "minItems": 1,
-            "description": "The statuses the kind's documents may carry; a document's status outside the list is a finding on its page."
+            "description": "The allowed statuses of the kind, as the documents write them."
           },
           "links": {
             "type": "array",
@@ -90,17 +123,18 @@
               "properties": {
                 "field": {
                   "type": "string",
-                  "pattern": "^[A-Za-z][A-Za-z0-9 _-]*$",
-                  "minLength": 1
+                  "minLength": 1,
+                  "description": "The field name as the document's form writes it, like Grew from, Serves."
                 },
                 "targets": {
                   "type": "array",
                   "items": {
                     "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9 _-]*$",
                     "minLength": 1
                   },
                   "minItems": 1,
-                  "description": "Each target names a kind of the registry by its id prefix; checked when the registry is read."
+                  "description": "The kinds this link may go to, each a kind of the registry."
                 },
                 "backlink": {
                   "type": "string",
@@ -125,8 +159,56 @@
               },
               "additionalProperties": false
             },
-            "minItems": 1,
-            "description": "The link fields the kind's documents carry, each naming its allowed target kinds."
+            "description": "The links the kind declares: field name, allowed target kinds, the backlink's label, the cardinality and whether the link is required."
+          },
+          "storage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "document"
+              },
+              {
+                "type": "string",
+                "const": "task"
+              },
+              {
+                "type": "string",
+                "const": "model-element"
+              },
+              {
+                "type": "string",
+                "const": "component"
+              },
+              {
+                "type": "string",
+                "const": "fact"
+              }
+            ],
+            "description": "How the kind is stored inside the product. document is what this engine version implements; the other forms are reserved and kept as data, named by an honest finding, never dropped."
+          },
+          "evidence": {
+            "type": "object",
+            "required": [
+              "source"
+            ],
+            "properties": {
+              "source": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9 _-]*$",
+                "minLength": 1
+              },
+              "ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9 _-]*$",
+                "minLength": 1
+              },
+              "record": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9 _-]*$",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false
