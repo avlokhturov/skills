@@ -790,6 +790,7 @@ async function statusRun(flags) {
     out.supervisor = { configured: !!cfg.supervisor || !!pid, alive, pid, lastTick: pid ? new Date(statSync(pidPath(flags, repoRoot)).mtimeMs).toISOString() : null };
     out.lastPublish = cfg.lastPublish || null; out.lastPublishOk = cfg.lastPublishOk ?? null;
     out.lastFetch = remote.ok ? nowIso() : cfg.lastFetch || null;
+    out.lastSync = cfg.lastFetch || null;
     // How a project learns that its installed copy is older than the set's: the
     // copy reports the version it was installed from, and whoever has the set
     // compares it with the set's own (setup does this on every run, byte for
