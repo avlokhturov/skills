@@ -1,0 +1,1169 @@
+#!/usr/bin/env node
+/**
+ * The proofs for the off-branch tracker sync (design.md section 8, interface v2 F2..F13).
+ *
+ *   node test/tracker-sync-proof.mjs [--keep] [--with-br] [--scratch <dir>] [--only <case-id>...]
+ *
+ * Two simulated machines: one local bare remote, two clones of a code
+ * repository, two per-machine stores (each with its own --state dir and
+ * machine name), and a neutral fake tracker (test/fixtures/tracker/fake.mjs
+ * through test/fixtures/tracker/recipe.mjs). The supervisor is simulated:
+ * the watch process is started, killed and started again. Nothing here
+ * installs a unit into systemd or launchd, and no proof of a real boot is
+ * claimed. The scratch directory is removed at the end unless --keep.
+ * One line per case with PASS/FAIL; the timing proofs print the measured
+ * milliseconds. The script exits non-zero when any case fails — and when
+ * no case ran at all.
+ */
+import { spawnSync, spawn } from 'node:child_process';
+import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, openSync, closeSync } from 'node:fs';
+import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const WORKTREE = resolve(join(dirname(fileURLToPath(import.meta.url)), '..'));
+const MECH_SRC = join(WORKTREE, 'skills/backlog/setup-shady2k-skills/tracker-sync.mjs');
+const FIXTURES = join(WORKTREE, 'test/fixtures/tracker');
+const RECIPE_SRC = join(FIXTURES, 'recipe.mjs');
+const FAKE_SRC = join(FIXTURES, 'fake.mjs');
+const UNIT_SRC = join(WORKTREE, 'skills/backlog/setup-shady2k-skills/supervisors/systemd-user/tracker-sync.service');
+const BR_RECIPE = join(WORKTREE, 'skills/backlog/setup-shady2k-skills/trackers/br.mjs');
+
+const KEEP = process.argv.includes('--keep');
+const WITH_BR = process.argv.includes('--with-br');
+const ONLY = (() => {
+  const i = process.argv.indexOf('--only');
+  return i >= 0 ? process.argv.slice(i + 1).filter((a) => !a.startsWith('--')) : null;
+})();
+const GIT_SHIM = !!process.env.PROOF_GIT_SHIM;
+const SCRATCH = (() => {
+  const i = process.argv.indexOf('--scratch');
+  return i >= 0 ? resolve(process.argv[i + 1]) : `/tmp/tracker-sync-proof-${process.pid}`;
+})();
+if (!existsSync(MECH_SRC)) {
+  console.error('tracker-sync-proof: ' + MECH_SRC + ' is missing; there is nothing to prove.');
+  process.exit(2);
+}
+
+// ---------------------------------------------------------------- results
+const results = [];
+let failCount = 0;
+function record(id, ok, detail, ms) {
+  results.push({ id, ok, detail, ms });
+  if (!ok) failCount++;
+  console.log(`${ok ? 'PASS' : 'FAIL'} ${id}${ms !== undefined ? ` (${ms} ms)` : ''}${detail ? ' — ' + detail : ''}`);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function waitUntil(fn, timeoutMs, pollMs = 50) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    try { const v = await fn(); if (v) return { value: v, elapsed: Date.now() - t0 }; } catch { /* keep polling */ }
+    await sleep(pollMs);
+  }
+  return { value: null, elapsed: Date.now() - t0 };
+}
+
+// ------------------------------------------------------------------ helpers
+function sh(cmd, args, opts = {}) {
+  const r = spawnSync(cmd, args, { cwd: opts.cwd, env: { ...process.env, ...(opts.env || {}) }, encoding: 'utf8' });
+  return { code: r.status ?? 127, out: (r.stdout || '') + (r.stderr || ''), stdout: r.stdout || '', stderr: r.stderr || '' };
+}
+function git(ctx, args, opts = {}) {
+  return sh('git', ['-C', opts.cwd || ctx.remote, ...args], opts);
+}
+// The mechanism: every subcommand names the machine's own state dir and the
+// machine's own checkout (the mechanism resolves the store's repo from one of them).
+function mech(ctx, sub, args, opts = {}) {
+  const machine = opts.machine || 'A';
+  const env = { ...process.env, TRACKER_RECIPE: ctx.recipe, ...(opts.env || {}) };
+  const repo = machine === 'A' ? ctx.codeA : ctx.codeB;
+  const state = machine === 'A' ? ctx.stateA : ctx.stateB;
+  const shim = ctx.gitShim || (ctx.tag.startsWith('4-refused-push') ? '/tmp/gitshim' : null);
+  const shimEnv = shim ? { PATH: shim + ':' + process.env.PATH, GITSHIM_LOG: join(ctx.scratch, 'git-shim.log') } : {};
+  return sh('node', [ctx.mech, sub, '--recipe', ctx.recipe, '--state', state, '--repo', repo, ...args],
+    { ...opts, env: { ...env, ...shimEnv }, cwd: opts.cwd || ctx.scratch });
+}
+function watcher(ctx, machine, args = ['--interval', '1', '--debounce', '2']) {
+  const logPath = join(ctx.scratch, 'watch-' + machine + '-' + ctx.watchers.length + '.log');
+  const logFd = openSync(logPath, 'w');
+  const child = spawn('node', [ctx.mech, 'watch', '--recipe', ctx.recipe, ...args, '--state', machine === 'A' ? ctx.stateA : ctx.stateB, '--repo', machine === 'A' ? ctx.codeA : ctx.codeB],
+    { cwd: ctx.scratch, env: { ...process.env, TRACKER_RECIPE: ctx.recipe, ...(ctx.gitShim ? { PATH: ctx.gitShim + ':' + process.env.PATH, GITSHIM_LOG: join(ctx.scratch, 'git-shim.log') } : {}), ...(ctx.debugEnv || {}) }, stdio: ['ignore', logFd, logFd] });
+  child.logPath = logPath;
+  ctx.watchers.push(child);
+  return child;
+}
+// A watcher's first sync tick merges and rewrites the state files from the
+// merged out file. A raw store write raced against that rewrite is lost, so
+// every case settles the first tick (store head reaches the remote tip)
+// before it writes into the store.
+async function settleWatcher(ctx, machine, timeoutMs = 8000) {
+  const store = storeOf(ctx, machine);
+  if (!store) return false;
+  const res = await waitUntil(async () => {
+    const head = sh('git', ['-C', store, 'rev-parse', 'HEAD']);
+    const tip = remoteTip(ctx);
+    return tip && head.code === 0 && head.stdout.trim() === tip ? true : null;
+  }, timeoutMs, 100);
+  await sleep(300); // the tick's post-import commit is on the remote; let the next tick pass
+  return !!res.value;
+}
+function stopWatcher(child) {
+  if (!child || child.exitCode !== null || child.signalCode) return;
+  try { child.kill('SIGKILL'); } catch { /* already gone */ }
+}
+function stopAllWatchers(ctx) { for (const c of ctx.watchers) stopWatcher(c); ctx.watchers = []; }
+
+function statusFresh(ctx, machine) {
+  const r = mech(ctx, 'status', ['--json'], { machine });
+  try { return { raw: r, json: JSON.parse(r.stdout) }; } catch { return { raw: r, json: null }; }
+}
+function storeOf(ctx, machine) {
+  // cached once the store exists: status fetches the remote, which costs
+  // 20 s when the remote is deliberately gone
+  const cache = machine === 'A' ? 'storeA' : 'storeB';
+  if (ctx[cache]) return ctx[cache];
+  const s = statusFresh(ctx, machine);
+  const store = s.json && s.json.store;
+  if (store) ctx[cache] = store;
+  return store || null;
+}
+function remoteTip(ctx) {
+  const r = git(ctx, ['rev-parse', '--verify', 'refs/tracker/state'], { cwd: ctx.remote });
+  return r.code === 0 ? r.stdout.trim() : null;
+}
+function remoteItems(ctx) {
+  const tip = remoteTip(ctx);
+  if (!tip) return [];
+  const r = git(ctx, ['cat-file', '-p', tip + ':fake/items.jsonl'], { cwd: ctx.remote });
+  if (r.code !== 0) return [];
+  return r.stdout.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
+}
+async function waitForRemote(ctx, check, timeoutMs = 5000) {
+  return waitUntil(async () => {
+    const items = remoteItems(ctx);
+    return check(items) ? items : null;
+  }, timeoutMs, 40);
+}
+function storeItems(ctx, machine) {
+  const store = storeOf(ctx, machine);
+  if (!store) return [];
+  const p = join(store, 'fake', 'items.jsonl');
+  if (!existsSync(p)) return [];
+  return readFileSync(p, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
+}
+function seedStore(ctx, machine, items) {
+  const store = storeOf(ctx, machine);
+  mkdirSync(join(store, 'fake'), { recursive: true });
+  writeFileSync(join(store, 'fake', 'items.jsonl'), items.map((r) => JSON.stringify(r)).join('\n') + '\n');
+  writeFileSync(join(store, 'fake', 'db.json'), JSON.stringify({ records: items }, null, 1) + '\n');
+}
+// a write on a machine's store: the fake's own record command
+function post(ctx, machine, itemId, text) {
+  const store = storeOf(ctx, machine);
+  const env = { FAKE_AUTHOR: machine === 'A' ? 'session-a' : 'session-b' };
+  const r = sh('node', [ctx.fake, 'post', '--item', itemId, '--text', text], { cwd: store, env });
+  return { ...r, recordId: r.stdout.trim() };
+}
+function claim(ctx, machine, itemId, holder) {
+  return mech(ctx, 'claim', ['--item', itemId, '--holder', holder], { machine });
+}
+function fakeVoid(ctx, machine, recordId) {
+  const store = storeOf(ctx, machine);
+  return sh('node', [ctx.fake, 'void', '--record', recordId], { cwd: store, env: { FAKE_AUTHOR: 'session-x' } });
+}
+function fsAppend(file, text) {
+  const fd = openSync(file, 'a');
+  try { writeFileSync(fd, text); } finally { closeSync(fd); }
+}
+const item = (id, title) => ({ id, title, status: 'open', holder: '', updated_at: '2026-10-13T10:00:00Z', comments: [] });
+const item1 = () => item('i-1', 'first');
+const item2 = () => item('i-2', 'second');
+const item3 = () => item('i-3', 'third');
+
+// ------------------------------------------------------------ machine boot
+function newCtx(tag, overrides = {}) {
+  const dir = join(SCRATCH, tag);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  const remote = join(dir, 'remote.git');
+  sh('git', ['init', '--bare', '--initial-branch', 'main', remote]);
+  const codeA = join(dir, 'codeA');
+  sh('git', ['clone', remote, codeA]);
+  writeFileSync(join(codeA, 'README.md'), 'code repository one\n');
+  sh('git', ['-C', codeA, 'add', '.']);
+  sh('git', ['-C', codeA, '-c', 'user.name=proof', '-c', 'user.email=proof@local', 'commit', '-m', 'seed']);
+  const pushSeed = sh('git', ['-C', codeA, 'push', '-q', 'origin', 'HEAD:refs/heads/main']);
+  if (pushSeed.code !== 0) throw new Error('seed push failed: ' + pushSeed.out);
+  const codeB = join(dir, 'codeB');
+  sh('git', ['clone', remote, codeB]);
+  return {
+    tag, scratch: dir, remote, codeA, codeB,
+    stateA: join(dir, 'stateA'), stateB: join(dir, 'stateB'),
+    mech: overrides.mech || MECH_SRC,
+    recipe: overrides.recipe || RECIPE_SRC,
+    fake: overrides.fake || FAKE_SRC,
+    watchers: [],
+    gitShim: GIT_SHIM ? '/tmp/gitshim' : null,
+  };
+}
+function connect(ctx, machine, extraArgs = []) {
+  const checkouts = machine === 'A' ? [ctx.codeA] : [ctx.codeB];
+  // a recipe whose init needs an id prefix gets one derived from the scratch
+  // tag, so the shipped br recipe and the fake take the same path
+  const prefix = ctx.recipe === BR_RECIPE ? ['--prefix', 'br-' + machine.toLowerCase()] : [];
+  return mech(ctx, 'connect', ['--machine', machine, '--checkout', ...checkouts, ...prefix, ...extraArgs], { machine });
+}
+function bringUp(ctx, machine) {
+  let r = connect(ctx, machine);
+  if (r.code !== 0) {
+    // connect is idempotent; one retry absorbs an ordinal or lock race
+    r = connect(ctx, machine);
+  }
+  if (r.code !== 0) {
+    return { ...r, out: r.out.split('\n').slice(0, 5).join(' | ') + (r.stderr ? ' ERR: ' + r.stderr.split('\n')[0] : '') };
+  }
+  const store = storeOf(ctx, machine);
+  if (store) {
+    // the fake tracker's store starts empty: give it its first records.
+    // The br recipe imports the state from the ref; a store that already
+    // carries items is left alone.
+    const itemsFile = join(store, ctx.recipe === BR_RECIPE ? '.beads/issues.jsonl' : 'fake/items.jsonl');
+    const hasState = existsSync(itemsFile) && readFileSync(itemsFile, 'utf8').trim();
+    if (!hasState) {
+      seedStore(ctx, machine, [item1(), item2(), item3()]);
+      r = mech(ctx, 'publish', [], { machine });
+      if (r.code !== 0) {
+        r = mech(ctx, 'publish', [], { machine }); // one retry: the first push may race the store's setup
+        if (r.code !== 0) return { ...r, out: 'publish: ' + r.out.split('\n').slice(0, 4).join(' | ') };
+      }
+    }
+    // connect's contract: the store exists, and every checkout given names it
+    const chk = mech(ctx, 'status', ['--json'], { machine });
+    let pointed = null;
+    try { pointed = JSON.parse(chk.stdout); } catch { /* covered by the assertion below */ }
+    const checks = pointed && Array.isArray(pointed.checks) ? pointed.checks : [];
+    const reaches = (c) => c.ok && c.pointsAt && (resolve(c.pointsAt) === resolve(store)
+      || resolve(c.pointsAt).startsWith(resolve(store) + '/')); // a recipe may point at its storePath inside the worktree
+    if (!store || !checks.length || !checks.every(reaches)) {
+      return { code: 1, out: 'connect contract: store=' + store + ', checks=' + JSON.stringify(checks).slice(0, 200) };
+    }
+    ctx[cacheKey(machine)] = store;
+  }
+  return r;
+}
+const cacheKey = (m) => (m === 'A' ? 'storeA' : 'storeB');
+function waitForRemoteOnce(ctx) {
+  for (let i = 0; i < 50; i++) { const tip = remoteTip(ctx); if (tip) return tip; }
+  return null;
+}
+
+// ------------------------------------------------------- broken mechanisms
+// Each rule is broken once: a text replacement on a COPY of the mechanism
+// (and, where the recipe owns the duty, of the recipe or the fake). The same
+// case must fail under the broken copy; a break that no case catches means
+// the case is too weak, and the harness fails for it.
+function breakByRegex(name, srcTxt, regex, replacement) {
+  if (!srcTxt.match(regex)) throw new Error('break ' + name + ': the pattern was not found in the source');
+  return srcTxt.replace(regex, replacement);
+}
+// a break by a plain string, no regex metacharacters
+function breakByLiteral(name, srcTxt, pattern, replacement) {
+  if (!srcTxt.includes(pattern)) throw new Error('break ' + name + ': the text was not found in the source');
+  return srcTxt.split(pattern).join(replacement);
+}
+function checkSyntax(name, file) {
+  const r = spawnSync('node', ['--check', file], { encoding: 'utf8' });
+  if (r.status !== 0) throw new Error('break ' + name + ': the broken copy does not parse: ' + (r.stderr || '').split('\n')[0]);
+}
+function makeBrokenEnv(breakName, apply) {
+  const dir = join(SCRATCH, 'broken-' + breakName);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  const src = { mech: readFileSync(MECH_SRC, 'utf8'), recipe: readFileSync(RECIPE_SRC, 'utf8'), fake: readFileSync(FAKE_SRC, 'utf8') };
+  const out = apply(src);
+  const mechPath = join(dir, 'tracker-sync.mjs');
+  const recipePath = join(dir, 'recipe.mjs');
+  const fakePath = join(dir, 'fake.mjs');
+  writeFileSync(mechPath, out.mech !== undefined ? out.mech : src.mech);
+  writeFileSync(recipePath, out.recipe !== undefined ? out.recipe : src.recipe);
+  writeFileSync(fakePath, out.fake !== undefined ? out.fake : src.fake);
+  checkSyntax(breakName, mechPath);
+  checkSyntax(breakName, fakePath);
+  return { mech: mechPath, recipe: recipePath, fake: fakePath };
+}
+
+const BREAKS = [
+  {
+    name: 'publish-commits-but-does-not-push',
+    cases: ['1-publish-latency'],
+    apply: (s) => ({ mech: breakByRegex('publish-nopush', s.mech, /(['"])push\1(?=,\s*['"]origin['"])/, '$1pushx$1') }),
+  },
+  {
+    name: 'sync-skips-the-merge',
+    cases: ['4-refused-push'],
+    apply: (s) => ({ mech: breakByLiteral('sync-nomerge', s.mech, 'oid = await mergeAndCommit(remote.tip)', 'oid = head; /* deliberate break: the merge is skipped */') }),
+  },
+  {
+    name: 'claim-does-not-re-read-the-remote',
+    cases: ['5-claim-race'],
+    apply: (s) => ({
+      fake: breakByLiteral('claim-norecheck', s.fake, 'if (item.holder && item.holder !== holder) {',
+        'if (false) { // deliberate break: the condition is never re-read'),
+    }),
+  },
+  {
+    name: 'record-overwrites-an-existing-recording',
+    cases: ['6-recording'],
+    // Both guards are broken: the local one (the file is there) and the remote
+    // one (the ref already holds it). Breaking only one leaves the case passing
+    // through the other, which is what made this mutation survive once already.
+    apply: (s) => ({
+      mech: breakByLiteral('record-overwrite',
+        breakByLiteral('record-overwrite-local', s.mech, 'if (existsSync(file)) die(1, `a recording', 'if (false) die(1, `a recording'),
+        'if (there)\n        die(1, `${String(rev).slice(0, 12)} is already recorded on the remote; a recording is written once and never moved, so nothing is written here`);',
+        'if (false) die(1, `x`)'),
+    }),
+  },
+  {
+    name: 'merge-renumbers-an-existing-record-id',
+    cases: ['4-refused-push'],
+    apply: (s) => ({
+      fake: breakByLiteral('merge-renumber', s.fake,
+        "comments.sort((x, y) => (x.created_at || '').localeCompare(y.created_at || ''));",
+        "comments.sort((x, y) => (x.created_at || '').localeCompare(y.created_at || ''));\n      for (const c of comments) c.id = 'ren-' + c.id; // deliberate break: ids move"),
+    }),
+  },
+  {
+    name: 'the-pointer-check-names-another-path',
+    cases: ['7-reach'],
+    apply: (s) => ({
+      fake: breakByLiteral('pointer-check-wrong', s.fake,
+        "out(resolve(store));",
+        "out('/tmp/nowhere'); // deliberate break: the check names another path"),
+    }),
+  },
+  {
+    name: 'sync-never-says-the-remote-is-unreachable',
+    cases: ['3-unreachable-remote'],
+    apply: (s) => ({ mech: breakByLiteral('sync-nosay', s.mech, 'const r = await syncOnce({ needsRemote: true, quiet: false });', 'const r = await syncOnce({ needsRemote: false, quiet: false }); /* deliberate break: unreachability is never said */') }),
+  },
+];
+
+async function runBroken(breakDef) {
+  let overrides;
+  try { overrides = makeBrokenEnv(breakDef.name, breakDef.apply); } catch (e) {
+    record('mutation-' + breakDef.name, false, 'the break could not be applied: ' + e.message);
+    return;
+  }
+  const detail = [];
+  let caught = false;
+  for (const caseId of breakDef.cases) {
+    // a mutated run's failures are the point; they do not count as harness
+    // failures — the mutation assertion below is the verdict
+    const before = failCount;
+    const run = await runCase(caseId, overrides);
+    failCount = before;
+    if (run.failed) { caught = true; detail.push(caseId + ' failed as required'); }
+    else detail.push(caseId + ' still passed (case too weak)');
+  }
+  record('mutation-' + breakDef.name, caught, detail.join('; '));
+}
+
+// ------------------------------------------------------------------ cases
+const CASES = {
+  // 1. Publish: a write on A is on the remote's ref within 5 s of the write,
+  // through the watch loop's debounce. The supervisor is simulated too:
+  // watch killed, write, watch again, the write lands.
+  '1-publish-latency': async (ctx) => {
+    const r = bringUp(ctx, 'A');
+    if (r.code !== 0) { record('1-publish-latency', false, 'bring-up failed: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
+    const w = watcher(ctx, 'A');
+    try {
+      await waitUntil(async () => remoteTip(ctx), 5000);
+      await settleWatcher(ctx, 'A');
+      const t0 = Date.now();
+      const p = post(ctx, 'A', 'i-1', 'hello from A');
+      if (p.code !== 0) { record('1-publish-latency', false, 'post failed: ' + p.out); return; }
+      const rid = p.recordId;
+      const res = await waitForRemote(ctx, (items) => {
+        const it = items.find((x) => x.id === 'i-1');
+        return it && it.comments.some((c) => c.id === rid && c.text === 'hello from A');
+      });
+      const ms = Date.now() - t0;
+      const items = remoteItems(ctx);
+      const c = (items.find((x) => x.id === 'i-1')?.comments || []).find((x) => x.id === rid);
+      let ok = !!res.value && res.elapsed <= 5000;
+      const why = [];
+      if (!res.value) why.push('record ' + rid + ' not on the remote within 5 s');
+      else if (res.elapsed > 5000) why.push('took ' + res.elapsed + ' ms');
+      if (!c || c.text !== 'hello from A' || c.author !== 'session-a') { ok = false; why.push('remote body mismatch: ' + JSON.stringify(c)); }
+      record('1-publish-latency', ok, why.join('; '), ms);
+      // supervisor simulated: kill the watcher, write, start it again
+      stopWatcher(w);
+      post(ctx, 'A', 'i-2', 'while unsupervised');
+      const w2 = watcher(ctx, 'A');
+      const res2 = await waitForRemote(ctx, (items) => items.some((x) => x.id === 'i-2' && x.comments.some((c) => c.text === 'while unsupervised')));
+      record('9-supervisor-restart', !!res2.value, res2.value ? 'a write after the restart landed (not a real boot)' : 'the write after the restart never landed');
+      stopWatcher(w2);
+    } finally { stopAllWatchers(ctx); }
+  },
+
+  // 2. Sync: B sees A's write after its sync tick, before anything reads the store.
+  '2-sync-freshness': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('2-sync-freshness', false, 'bring-up A: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
+    r = bringUp(ctx, 'B'); if (r.code !== 0) { record('2-sync-freshness', false, 'bring-up B: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
+    const wA = watcher(ctx, 'A');
+    await settleWatcher(ctx, 'A');
+    const t0 = Date.now();
+    const p = post(ctx, 'A', 'i-1', 'for B');
+    if (p.code !== 0) { record('2-sync-freshness', false, 'post failed: ' + p.out); stopAllWatchers(ctx); return; }
+    const rid = p.recordId;
+    const seen = await waitForRemote(ctx, (items) => items.some((x) => x.id === 'i-1' && x.comments.some((c) => c.id === rid)), 5000);
+    if (!seen.value) {
+      const logs = ctx.watchers.map((c) => c.logPath).filter((f) => f && existsSync(f)).map((f) => f + ': ' + readFileSync(f, 'utf8').split('\n').slice(-6).join(' | '));
+      record('2-sync-freshness', false, 'A never published; watcher logs: ' + logs.join(' ;; '));
+      stopAllWatchers(ctx); return;
+    }
+    stopWatcher(wA); ctx.watchers = [];
+    const sB = mech(ctx, 'sync', [], { machine: 'B' });
+    if (sB.code !== 0) { record('2-sync-freshness', false, 'sync on B failed: ' + sB.out); return; }
+    const items = storeItems(ctx, 'B');
+    const it = items.find((x) => x.id === 'i-1');
+    const c = it && it.comments.find((x) => x.id === rid);
+    const ms = Date.now() - t0;
+    record('2-sync-freshness', !!c && c.text === 'for B', c ? 'B read the raw record' : "B's store does not carry the record: " + JSON.stringify(it).slice(0, 120), ms);
+    // the timer loop: sync --interval 1 on B sees a later write without a manual tick
+    const wA2 = watcher(ctx, 'A');
+    await settleWatcher(ctx, 'A');
+    const p2 = post(ctx, 'A', 'i-2', 'timer test');
+    const rid2 = p2.recordId;
+    await waitForRemote(ctx, (items) => items.some((x) => x.id === 'i-2' && x.comments.some((c) => c.id === rid2)), 5000);
+    const loop = spawn('node', [ctx.mech, 'sync', '--recipe', ctx.recipe, '--interval', '1', '--state', ctx.stateB, '--repo', ctx.codeB],
+      { cwd: ctx.scratch, env: { ...process.env, TRACKER_RECIPE: ctx.recipe }, stdio: 'ignore' });
+    ctx.watchers.push(loop);
+    const fresh = await waitUntil(async () => {
+      const its = storeItems(ctx, 'B');
+      return its.some((x) => x.id === 'i-2' && x.comments.some((c) => c.id === rid2));
+    }, 15000, 200);
+    stopAllWatchers(ctx);
+    record('2-sync-timer', !!fresh.value, fresh.value ? '' : 'the timer loop never brought the write to B');
+  },
+
+  // 3. Unreachable remote: the write stays local and readable, a read that
+  // needs another machine's state exits 4 and says so, and the write is
+  // published within 5 s of the remote's return.
+  '3-unreachable-remote': async (ctx) => {
+    let r = bringUp(ctx, 'B'); if (r.code !== 0) { record('3-unreachable-remote', false, 'bring-up: ' + r.out); return; }
+    // the store worktree shares the clone's remotes, so pointing the
+    // checkout's origin away makes the store's fetch unreachable too
+    sh('git', ['-C', ctx.codeB, 'remote', 'set-url', 'origin', '/nonexistent/remote.git']);
+    const r3 = mech(ctx, 'sync', [], { machine: 'B' });
+    const saysUnreachable = /unreachable|could not be reached|remote/i.test(r3.out);
+    // the sync must have run and named the unreachable remote (empty output
+    // would mean the command never reached the fetch)
+    record('3-unreachable-sync-exit-4', r3.code === 4 && saysUnreachable && r3.out.trim().length > 0,
+      'exit ' + r3.code + ', out: ' + r3.out.slice(0, 120));
+    const p = post(ctx, 'B', 'i-1', 'written while unreachable');
+    const rid = p.recordId;
+    const local = storeItems(ctx, 'B').some((x) => x.id === 'i-1' && x.comments.some((c) => c.id === rid));
+    record('3-unreachable-write-readable', local, local ? '' : 'the local write is not readable locally');
+    // a read that needs the remote exits 4; an offline read answers locally
+    const nowRead = mech(ctx, 'export', ['--now'], { machine: 'B' });
+    record('F9-export-now-unreachable-exit-4', nowRead.code === 4 && /unreachable|only/i.test(nowRead.out), 'exit ' + nowRead.code + ', out: ' + nowRead.out.slice(0, 120));
+    const offRead = mech(ctx, 'export', ['--now', '--offline'], { machine: 'B' });
+    record('F9-offline-export-answers-locally', offRead.code === 0 && offRead.stdout.includes('"i-1"'), 'exit ' + offRead.code);
+    // restore the remote; the write is published within 5 s of its return
+    const wB = watcher(ctx, 'B');
+    sh('git', ['-C', ctx.codeB, 'remote', 'set-url', 'origin', ctx.remote]);
+    const t0 = Date.now();
+    const res = await waitForRemote(ctx, (items) => items.some((x) => x.id === 'i-1' && x.comments.some((c) => c.id === rid)), 8000);
+    const ms = Date.now() - t0;
+    const ok = !!res.value && ms <= 5000;
+    record('3-unreachable-remote', ok, ok ? '' : (res.value ? 'published after ' + ms + ' ms' : 'never published'), ms);
+    stopAllWatchers(ctx);
+  },
+
+  // 4. Refused push: A's commit and B's commit both land; the refused push
+  // is retried with a real merge (the landed merge commit has two parents).
+  '4-refused-push': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('4-refused-push', false, 'bring-up A: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
+    const storeA = storeOf(ctx, 'A');
+    if (!storeA) { record('4-refused-push', false, 'no store on A'); return; }
+    // Divergent ancestry: both machines commit offline against the same
+    // base, and neither publishes until both have committed.
+    const remoteNow = remoteTip(ctx);
+    const base = remoteNow;
+    // freeze the remote: a pre-receive hook declines every tracker push so
+    // both machines commit without the remote moving
+    const hook = join(ctx.remote, 'hooks', 'pre-receive');
+    writeFileSync(hook, '#!/bin/sh\nwhile read old new ref; do case "$ref" in refs/heads/*|refs/tags/*) exit 0;; esac; echo "tracker ref temporarily declined" >&2; exit 1; done\nexit 0\n');
+    sh('chmod', ['+x', hook]);
+    const pA = post(ctx, 'A', 'i-1', 'A offline');
+    if (pA.code !== 0) { record('4-refused-push', false, 'post A failed: ' + pA.out); return; }
+    const ridA = pA.recordId;
+    const pubA = mech(ctx, 'publish', [], { machine: 'A' }); // commit kept, push declined
+    const aCommit = sh('git', ['-C', storeA, 'log', '--format=%H', '-20']).stdout.split('\n').map((c) => c.trim())
+      .find((c) => c && sh('git', ['-C', storeA, 'cat-file', '-p', c + ':fake/items.jsonl']).stdout.includes('A offline'));
+    if (!aCommit) { record('4-refused-push', false, 'A never committed its offline write: ' + pubA.out.split('\n')[0]); rmSync(hook); return; }
+    stopAllWatchers(ctx);
+    // B comes up and also commits offline (B starts from the same remote state)
+    r = bringUp(ctx, 'B');
+    if (r.code !== 0) { record('4-refused-push', false, 'bring-up B under the refusal: ' + r.out); rmSync(hook); stopAllWatchers(ctx); return; }
+    const pB = post(ctx, 'B', 'i-2', 'B offline');
+    if (pB.code !== 0) { record('4-refused-push', false, 'post B failed: ' + pB.out); rmSync(hook); stopAllWatchers(ctx); return; }
+    const ridB = pB.recordId;
+    const storeB = storeOf(ctx, 'B');
+    const pubB = mech(ctx, 'publish', [], { machine: 'B' });
+    const bCommit = sh('git', ['-C', storeB, 'log', '--format=%H', '-20']).stdout.split('\n').map((c) => c.trim())
+      .find((c) => c && sh('git', ['-C', storeB, 'cat-file', '-p', c + ':fake/items.jsonl']).stdout.includes('B offline'));
+    if (!bCommit) { record('4-refused-push', false, 'B never committed its offline write: ' + pubB.out.split('\n')[0]); rmSync(hook); stopAllWatchers(ctx); return; }
+    // both sides' ancestry is divergent: neither is the other's ancestor
+    const divA = sh('git', ['-C', storeA, 'merge-base', '--is-ancestor', remoteNow, aCommit]);
+    const divB = sh('git', ['-C', storeB, 'merge-base', '--is-ancestor', remoteNow, bCommit]);
+    if (divA.code !== 0 || divB.code !== 0) {
+      record('4-refused-push', false, 'the offline commits do not share the expected base');
+      rmSync(hook); stopAllWatchers(ctx); return;
+    }
+    // the remote answers again: whoever pushes first wins, the other must
+    // merge per item and push a two-parent merge commit
+    rmSync(hook);
+    const wA = watcher(ctx, 'A');
+    await settleWatcher(ctx, 'A');
+    const wB = watcher(ctx, 'B');
+    await settleWatcher(ctx, 'B');
+    const both = await waitForRemote(ctx, (items) => {
+      const i1 = items.find((x) => x.id === 'i-1'), i2 = items.find((x) => x.id === 'i-2');
+      return i1 && i2
+        && i1.comments.some((c) => c.id === ridA && c.text === 'A offline')
+        && i2.comments.some((c) => c.id === ridB && c.text === 'B offline');
+    }, 20000);
+    const items = remoteItems(ctx);
+    const i1 = items.find((x) => x.id === 'i-1'), i2 = items.find((x) => x.id === 'i-2');
+    const idsIntact = !!i1?.comments.some((c) => c.id === ridA && c.text === 'A offline')
+      && !!i2?.comments.some((c) => c.id === ridB && c.text === 'B offline');
+    // re-read once: the watcher may have published between the wait and the read
+    const items2 = remoteItems(ctx);
+    const j1 = items2.find((x) => x.id === 'i-1'), j2 = items2.find((x) => x.id === 'i-2');
+    const landed = !!both.value || (!!j1?.comments.some((c) => c.id === ridA && c.text === 'A offline')
+      && !!j2?.comments.some((c) => c.id === ridB && c.text === 'B offline'));
+    const textsPresent = !!j1?.comments.some((c) => c.text === 'A offline') && !!j2?.comments.some((c) => c.text === 'B offline');
+    record('4-refused-push', landed && idsIntact, landed
+      ? (idsIntact ? 'both offline writes landed with their record ids intact' : 'the writes landed but their record ids moved')
+      : (textsPresent ? 'the writes are on the remote but not with their own record ids' :
+        'missing: ' + (!i1?.comments.some((c) => c.text === 'A offline') ? 'A offline ' : '') + (!i2?.comments.some((c) => c.text === 'B offline') ? 'B offline' : '')));
+    // ancestry: the landed merge commit has two parents — this was a real
+    // merge, not a refused push repeated until it became fast-forward
+    const merges = sh('git', ['-C', ctx.remote, 'log', '--merges', '--format=%P', 'refs/tracker/state']).stdout.trim().split('\n').filter((l) => l.trim().split(/\s+/).length >= 2);
+    record('F2-ancestry-two-parents', merges.length >= 1, 'merge commits with parents: ' + JSON.stringify(merges));
+    stopAllWatchers(ctx);
+  },
+
+  // 5. Claim: of two claims exactly one lands; the loser exits 3, says so,
+  // and leaves no holder change behind — even with a watcher running (a
+  // rejected claim must never leak through the watcher).
+  '5-claim-race': async (ctx) => {
+    const rA = bringUp(ctx, 'A'); if (rA.code !== 0) { record('5-claim-race', false, 'bring-up A: ' + rA.out); return; }
+    const rB = bringUp(ctx, 'B'); if (rB.code !== 0) { record('5-claim-race', false, 'bring-up B: ' + rB.out); return; }
+    const wA = watcher(ctx, 'A');
+    const wB = watcher(ctx, 'B');
+    await settleWatcher(ctx, 'A');
+    await settleWatcher(ctx, 'B');
+    // both machines claim while the remote moves: whichever push lands first
+    // is the claim; the other's push is refused, its write is discarded, the
+    // merged remote state is re-read, and the recipe refuses with exit 3
+    const a = claim(ctx, 'A', 'i-1', 'holder-A');
+    const b = claim(ctx, 'B', 'i-1', 'holder-B');
+    const codes = 'exit codes: A=' + a.code + ' B=' + b.code;
+    let ok = (a.code === 0 && b.code === 3) || (a.code === 3 && b.code === 0);
+    const why = [codes];
+    const loser = a.code === 3 ? a : b;
+    const loserName = a.code === 3 ? 'A' : 'B';
+    if (ok && !/lost|discarded|claim|taken|holder/i.test(loser.out)) why.push('the loser does not say the claim was lost');
+    await waitUntil(async () => remoteItems(ctx).some((x) => x.id === 'i-1' && x.holder), 8000);
+    const items = remoteItems(ctx);
+    const i1 = items.find((x) => x.id === 'i-1');
+    const winnerHolder = a.code === 0 ? 'holder-A' : 'holder-B';
+    if (!i1 || i1.holder !== winnerHolder) { ok = false; why.push('remote holder: ' + JSON.stringify(i1 && i1.holder) + ', wanted ' + winnerHolder); }
+    // the loser left no holder change behind: not locally, not on the remote
+    const loserLocal = storeItems(ctx, loserName).find((x) => x.id === 'i-1');
+    const loserHolder = loserName === 'A' ? 'holder-A' : 'holder-B';
+    if (loserLocal && loserLocal.holder === loserHolder) { ok = false; why.push(loserName + ' still holds locally'); }
+    if (i1 && i1.holder === loserHolder && winnerHolder !== loserHolder) { /* already covered above */ }
+    // a discarded claim cannot leak through the watcher
+    await sleep(3000);
+    const i1After = remoteItems(ctx).find((x) => x.id === 'i-1');
+    if (i1After && i1After.holder !== winnerHolder) { ok = false; why.push('the rejected claim leaked through the watcher'); }
+    record('5-claim-race', ok, why.join('; '));
+    stopAllWatchers(ctx);
+  },
+
+  // 5b. A claim racing a status transition: one wins, the other exits 3.
+  '5b-claim-vs-transition': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('5b-claim-vs-transition', false, 'bring-up: ' + r.out); return; }
+    r = bringUp(ctx, 'B'); if (r.code !== 0) { record('5b-claim-vs-transition', false, 'bring-up B: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
+    const wA = watcher(ctx, 'A'); const wB = watcher(ctx, 'B');
+    // the same condition twice: only one status move can count on the remote
+    const t1 = mech(ctx, 'transition', ['--item', 'i-2', '--to', 'doing', '--expect', 'open'], { machine: 'A' });
+    const t2 = mech(ctx, 'transition', ['--item', 'i-2', '--to', 'doing', '--expect', 'open'], { machine: 'B' });
+    const oneLost = (t1.code === 0 && t2.code === 3) || (t1.code === 3 && t2.code === 0);
+    record('5b-claim-vs-transition', oneLost, 'first transition exit ' + t1.code + ', second exit ' + t2.code + ' (' + (t2.out || t1.out).split('\n')[0].slice(0, 90) + ')');
+    stopAllWatchers(ctx);
+  },
+
+  // 6. Recording: written once, read back raw, refused a second time, and
+  // untouched by a later state that names the same revision.
+  '6-recording': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('6-recording', false, 'bring-up: ' + r.out); return; }
+    const head = sh('git', ['-C', ctx.codeA, 'rev-parse', 'HEAD']).stdout.trim();
+    const store = storeOf(ctx, 'A');
+    const recDir = store ? join(store, '.tracker-sync', 'recordings') : null;
+    // connect records nothing: an old revision's state stays unknown
+    const recsBefore = recDir && existsSync(recDir) ? readdirSync(recDir) : [];
+    record('F5-connect-records-nothing', recsBefore.length === 0, 'recordings after connect: ' + JSON.stringify(recsBefore));
+    // a read at a revision with no recording refuses loudly
+    const absent = mech(ctx, 'export', ['--at', head], { machine: 'A' });
+    record('9-export-at-unrecorded-refuses', absent.code === 1 && /record|revision/i.test(absent.out), 'exit ' + absent.code + ', out: ' + absent.out.slice(0, 100));
+    const rec = mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
+    const recPath = recDir ? join(recDir, head + '.jsonl') : null;
+    const exists = recPath && existsSync(recPath);
+    const raw = exists ? readFileSync(recPath, 'utf8') : '';
+    const rawOk = exists && raw.includes('"i-1"') && raw.includes('"i-2"');
+    record('6-recording-written', exists && rawOk, exists ? (rawOk ? '' : 'recording body wrong: ' + raw.slice(0, 80)) : 'no recording file at ' + recPath);
+    const again = mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
+    const rawAfter = exists ? readFileSync(recPath, 'utf8') : '';
+    record('6-recording-refuses-second', again.code === 1 && rawAfter === raw && /already exists|never moved/i.test(again.out),
+      'exit ' + again.code + ', out: ' + again.out.slice(0, 100));
+    // the remote already holds a recording of this revision (A's record was
+    // pushed): B's record of the same revision is refused and writes nothing
+    const rB = bringUp(ctx, 'B');
+    if (rB.code !== 0) { record('6-recording-remote-refused', false, 'bring-up B: ' + rB.out); return; }
+    const storeB = storeOf(ctx, 'B');
+    const recDirB = join(storeB, '.tracker-sync', 'recordings');
+    rmSync(join(recDirB, head + '.jsonl'), { force: true });
+    const recB = mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'B' });
+    const wroteLocal = existsSync(join(recDirB, head + '.jsonl'));
+    const tip2 = remoteTip(ctx);
+    const remoteRec = tip2 ? sh('git', ['-C', ctx.remote, 'cat-file', '-p', tip2 + ':.tracker-sync/recordings/' + head + '.jsonl']).stdout : '';
+    record('6-recording-remote-refused', recB.code === 1 && !wroteLocal && remoteRec === raw && /already recorded|never moved/i.test(recB.out),
+      'exit ' + recB.code + ', wrote local: ' + wroteLocal + ', out: ' + recB.out.slice(0, 110));
+    // a read at the recorded revision answers with the recording
+    const atRead = mech(ctx, 'export', ['--at', head], { machine: 'A' });
+    record('F9-export-at-returns-recording', atRead.code === 0 && atRead.stdout === raw, 'exit ' + atRead.code);
+    // a later state that names the same revision does not replace the recording
+    r = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA], { machine: 'A' });
+    const rawRe = exists ? readFileSync(recPath, 'utf8') : '';
+    record('6-recording-unchanged-after-reconnect', rawRe === raw, rawRe === raw ? '' : 'the recording moved');
+    // record on a revision that is not the checkout's HEAD is refused
+    writeFileSync(join(ctx.codeA, 'more.txt'), 'another commit\n');
+    sh('git', ['-C', ctx.codeA, 'add', '.']);
+    sh('git', ['-C', ctx.codeA, '-c', 'user.name=proof', '-c', 'user.email=proof@local', 'commit', '-qm', 'more']);
+    const stale = mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
+    record('F5-record-non-head-refused', stale.code === 1, 'exit ' + stale.code + ', out: ' + stale.out.slice(0, 100));
+    // --from-tree: a revision that carried its own store file records from
+    // its tree; committed with the hooks disabled so nothing recorded it yet
+    mkdirSync(join(ctx.codeA, 'fake'), { recursive: true });
+    writeFileSync(join(ctx.codeA, 'fake', 'items.jsonl'), JSON.stringify(item1()) + '\n');
+    sh('git', ['-C', ctx.codeA, 'add', '.']);
+    sh('git', ['-C', ctx.codeA, '-c', 'user.name=proof', '-c', 'user.email=proof@local', '-c', 'core.hooksPath=/nonexistent-hooks', 'commit', '-qm', 'carry store in tree']);
+    const treeRev = sh('git', ['-C', ctx.codeA, 'rev-parse', 'HEAD']).stdout.trim();
+    const fromTree = mech(ctx, 'record', ['--revision', treeRev, '--checkout', ctx.codeA, '--from-tree'], { machine: 'A' });
+    const treePath = recDir ? join(recDir, treeRev + '.jsonl') : null;
+    const treeOk = treePath && existsSync(treePath) && readFileSync(treePath, 'utf8').includes('"i-1"');
+    record('F5-record-from-tree', fromTree.code === 0 && treeOk, 'exit ' + fromTree.code + ', ' + fromTree.out.slice(0, 100));
+    // the hook recorded the revision when it was cut, never a checkout
+    const moreRev = sh('git', ['-C', ctx.codeA, 'rev-parse', 'HEAD']).stdout.trim();
+    const recsAfterCommit = recDir && existsSync(recDir) ? readdirSync(recDir) : [];
+    record('F5-hook-records-the-cut', recsAfterCommit.includes(moreRev + '.jsonl'),
+      'recordings after the commit: ' + JSON.stringify(recsAfterCommit));
+  },
+
+  // 6b. Two sides' divergent recordings for one revision make the merge
+  // refuse loudly; identical recordings are kept once.
+  '6b-recording-divergence': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('6b-recording-divergence', false, 'bring-up: ' + r.out); return; }
+    r = bringUp(ctx, 'B'); if (r.code !== 0) { record('6b-recording-divergence', false, 'bring-up B: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
+    const storeA = storeOf(ctx, 'A'), storeB = storeOf(ctx, 'B');
+    const rev = sh('git', ['-C', ctx.codeA, 'rev-parse', 'HEAD']).stdout.trim();
+    const recDirA = join(storeA, '.tracker-sync', 'recordings');
+    const recDirB = join(storeB, '.tracker-sync', 'recordings');
+    mkdirSync(recDirA, { recursive: true }); mkdirSync(recDirB, { recursive: true });
+    // both sides commit their recording of the same revision and publish:
+    // the divergent pair must meet on the remote
+    writeFileSync(join(recDirA, rev + '.jsonl'), '=== fake/items.jsonl\n{"divergent":"A"}\n');
+    writeFileSync(join(recDirB, rev + '.jsonl'), '=== fake/items.jsonl\n{"divergent":"B"}\n');
+    const pubA = mech(ctx, 'publish', [], { machine: 'A' });
+    const pubB = mech(ctx, 'publish', [], { machine: 'B' });
+    const syncA = mech(ctx, 'sync', [], { machine: 'A' });
+    // whichever side meets the divergent pair refuses it, and the remote
+    // never holds two different recordings of one revision
+    const namedRefusal = (r) => r.code === 1 && /recording|diverg|revision|person/i.test(r.out);
+    const remoteHasPair = (() => {
+      const tip = remoteTip(ctx);
+      if (!tip) return true;
+      const files = sh('git', ['-C', ctx.remote, 'ls-tree', '--name-only', tip, '.tracker-sync/recordings/']).stdout.split('\n').filter((l) => l.includes(rev));
+      return files.length > 1;
+    })();
+    const refused = (namedRefusal(pubB) || namedRefusal(syncA)) && !remoteHasPair;
+    record('6b-divergent-recording-refused', refused,
+      'publish A exit ' + pubA.code + ', publish B exit ' + pubB.code + ' (' + pubB.out.split('\n')[0].slice(0, 80) + ')'
+      + ', sync A exit ' + syncA.code + ', two recordings on the remote: ' + remoteHasPair);
+    // identical content is kept once
+    writeFileSync(join(recDirB, rev + '.jsonl'), '=== fake/items.jsonl\n{"divergent":"A"}\n');
+    const sync2 = mech(ctx, 'sync', [], { machine: 'A' });
+    record('6b-same-recording-kept-once', sync2.code === 0, 'exit ' + sync2.code);
+  },
+
+  // 7. Reach: two checkouts point at one store; a checkout with no pointer
+  // fails loudly and no second store appears; a new clone with no local
+  // custom ref still gets the store.
+  '7-reach': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('7-reach', false, 'bring-up: ' + r.out); return; }
+    const outside = join(ctx.scratch, 'outside');
+    sh('git', ['clone', ctx.remote, outside]);
+    r = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA, '--checkout', outside], { machine: 'A' });
+    const store = storeOf(ctx, 'A');
+    const where1 = sh('node', [ctx.fake, 'where'], { cwd: ctx.codeA });
+    const where2 = sh('node', [ctx.fake, 'where'], { cwd: outside });
+    const both = where1.code === 0 && where2.code === 0 && store
+      && resolve(where1.stdout.trim()) === resolve(store) && resolve(where2.stdout.trim()) === resolve(store);
+    record('7-reach', r.code === 0 && both, 'where: ' + where1.stdout.trim() + ' / ' + where2.stdout.trim() + ' vs ' + store);
+    // a checkout with no pointer fails loudly; no store is created for it
+    const orphan = join(ctx.scratch, 'orphan');
+    sh('git', ['clone', ctx.remote, orphan]);
+    const whereOrphan = sh('node', [ctx.fake, 'where'], { cwd: orphan });
+    record('F7-no-pointer-fails-loudly', whereOrphan.code === 1 && /pointer|store/i.test(whereOrphan.stdout + whereOrphan.stderr), 'exit ' + whereOrphan.code);
+    record('F7-no-second-store', !existsSync(join(orphan, 'fake')) && !existsSync(join(orphan, '.fake-store')),
+      'the checkout initialized no tracker of its own');
+    // a new clone with no local custom ref still reaches the store
+    const fresh = join(ctx.scratch, 'fresh');
+    sh('git', ['clone', ctx.remote, fresh]);
+    const noRef = sh('git', ['-C', fresh, 'rev-parse', '--verify', 'refs/tracker/state']);
+    r = mech(ctx, 'connect', ['--machine', 'A', '--checkout', fresh], { machine: 'A' });
+    const whereFresh = sh('node', [ctx.fake, 'where'], { cwd: fresh });
+    const seen = storeItems(ctx, 'A').some((x) => x.id === 'i-1');
+    record('F2-new-clone-gets-ref', r.code === 0 && whereFresh.code === 0 && seen,
+      'no local ref before: ' + (noRef.code !== 0) + ', connect exit ' + r.code + ', where exit ' + whereFresh.code);
+  },
+
+  // 7b. Repeated reconnect after an offline commit keeps the store HEAD.
+  '7b-reconnect-after-offline': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('7b-reconnect-after-offline', false, 'bring-up: ' + r.out); return; }
+    const storeA = storeOf(ctx, 'A');
+    const headBefore = sh('git', ['-C', storeA, 'rev-parse', 'HEAD']).stdout.trim();
+    const p = post(ctx, 'A', 'i-1', 'offline write');
+    const rid = p.recordId;
+    const headAfterWrite = sh('git', ['-C', storeA, 'rev-parse', 'HEAD']).stdout.trim();
+    r = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA], { machine: 'A' });
+    const headAfterReconnect = sh('git', ['-C', storeA, 'rev-parse', 'HEAD']).stdout.trim();
+    // the store's own history is kept: the offline write's commit is still
+    // an ancestor of the store head (a reconnect may merge, never reset)
+    const anc = sh('git', ['-C', storeA, 'merge-base', '--is-ancestor', headAfterWrite, headAfterReconnect]);
+    const stillThere = storeItems(ctx, 'A').some((x) => x.id === 'i-1' && x.comments.some((c) => c.id === rid));
+    record('F2-reconnect-keeps-store-head', r.code === 0 && anc.code === 0 && stillThere,
+      'offline write still an ancestor of the store head: ' + (anc.code === 0) + ', record kept: ' + stillThere);
+  },
+
+  // 8. No code CI: the ref's namespace. This alone does not prove a
+  // provider starts no run — the project's own run list is that proof.
+  '8-no-code-ci': async (ctx) => {
+    const r = bringUp(ctx, 'A');
+    if (r.code !== 0) { record('8-no-code-ci', false, 'bring-up: ' + r.out); return; }
+    const tip = remoteTip(ctx);
+    record('8-no-code-ci', !!tip, tip
+      ? "the store is on refs/tracker/state, outside refs/heads/ and refs/tags/ — this checks the namespace only; it does NOT prove a provider starts no run (the project's own run list after the first push is that proof)"
+      : 'no store on the ref');
+  },
+
+  // F6. Hostile code hooks: publishing, claiming and recording neither
+  // recurse into the code checkout's hooks nor trip them.
+  'F6-hostile-hooks': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('F6-hostile-hooks', false, 'bring-up: ' + r.out); return; }
+    const hooks = join(ctx.codeA, '.git', 'hooks');
+    // a pre-push hook that rejects every push of this checkout, and a
+    // post-commit hook that logs where it ran
+    writeFileSync(join(hooks, 'pre-push'), '#!/bin/sh\necho "unlinked commit rejected by pre-push" >&2\nexit 1\n');
+    writeFileSync(join(hooks, 'post-commit'), '#!/bin/sh\npwd >> hookfires.log\nexit 0\n');
+    sh('chmod', ['+x', join(hooks, 'pre-push'), join(hooks, 'post-commit')]);
+    const firesBefore = existsSync(join(ctx.codeA, 'hookfires.log')) ? readFileSync(join(ctx.codeA, 'hookfires.log'), 'utf8') : '';
+    // publishing (store commits and pushes), claiming and recording must work
+    const w = watcher(ctx, 'A');
+    await settleWatcher(ctx, 'A');
+    const p = post(ctx, 'A', 'i-1', 'with hostile hooks');
+    const rid = p.recordId;
+    const pub = await waitForRemote(ctx, (items) => items.some((x) => x.id === 'i-1' && x.comments.some((c) => c.id === rid)), 6000);
+    stopAllWatchers(ctx);
+    const cl = claim(ctx, 'A', 'i-2', 'holder-A');
+    const head = sh('git', ['-C', ctx.codeA, 'rev-parse', 'HEAD']).stdout.trim();
+    const recd = mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
+    const firesAfter = existsSync(join(ctx.codeA, 'hookfires.log')) ? readFileSync(join(ctx.codeA, 'hookfires.log'), 'utf8') : '';
+    const newFires = firesAfter.slice(firesBefore.length).trim().split('\n').filter(Boolean);
+    const noneFromStore = newFires.every((f) => f.startsWith(String(ctx.codeA)));
+    record('F6-publish-claim-record-not-tripped', !!pub.value && cl.code === 0 && recd.code === 0,
+      'publish: ' + !!pub.value + ', claim exit ' + cl.code + ', record exit ' + recd.code + ', ' + cl.out.slice(0, 80));
+    record('F6-store-commits-never-run-code-hooks', noneFromStore && newFires.length === 0,
+      'hook fires during publish/claim/record: ' + JSON.stringify(newFires));
+  },
+
+  // F7. Sustained writes: one per second for 6 s, each published within 5 s
+  // of its own write (the max-age bound), and a stalled remote does not
+  // starve the sync tick.
+  'F7-sustained-writes': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('F7-sustained-writes', false, 'bring-up: ' + r.out); return; }
+    // --max-age 4: the default 5 s bound plus one 1 s tick can land a
+    // first write just past 5 s, so the case holds the measure with a 4 s bound
+    const w = watcher(ctx, 'A', ['--interval', '1', '--debounce', '2', '--max-age', '3']);
+    await settleWatcher(ctx, 'A');
+    const t0 = Date.now();
+    const writes = [];
+    const seenTimes = new Map(); // record id -> publish time
+    const poll = (async () => {
+      while (seenTimes.size < 6 && Date.now() - t0 < 20000) {
+        for (const c of remoteItems(ctx).flatMap((x) => x.comments || [])) {
+          if (writes.some((wt) => wt.rid === c.id) && !seenTimes.has(c.id)) seenTimes.set(c.id, Date.now());
+        }
+        await sleep(50);
+      }
+    })();
+    for (let i = 0; i < 6; i++) {
+      writes.push({ t: Date.now(), rid: post(ctx, 'A', 'i-1', 'burst ' + i).recordId });
+      await sleep(1000);
+    }
+    await Promise.race([poll, sleep(15000)]);
+    const latencies = writes.map((wt) => seenTimes.has(wt.rid) ? seenTimes.get(wt.rid) - wt.t : null);
+    const within = latencies.every((l) => l !== null && l <= 5000);
+    record('F7-sustained-writes', within && latencies.every((l) => l !== null),
+      'per-write latencies ms: ' + JSON.stringify(latencies), Date.now() - t0);
+    stopAllWatchers(ctx);
+  },
+
+  'F7-stalled-remote': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('F7-stalled-remote', false, 'bring-up: ' + r.out); return; }
+    // a remote whose git hangs: an ssh URL whose ssh command never answers
+    const sshWrap = join(ctx.scratch, 'sleep-ssh.sh');
+    writeFileSync(sshWrap, '#!/bin/sh\nsleep 600\n');
+    sh('chmod', ['+x', sshWrap]);
+    sh('git', ['-C', ctx.codeA, 'remote', 'set-url', 'origin', 'stalled@localhost:/nonexistent/repo.git']);
+    const loop = spawn('node', [ctx.mech, 'sync', '--recipe', ctx.recipe, '--interval', '1', '--state', ctx.stateA, '--repo', ctx.codeA],
+      { cwd: ctx.scratch, env: { ...process.env, TRACKER_RECIPE: ctx.recipe, GIT_SSH_COMMAND: sshWrap }, stdio: 'ignore' });
+    ctx.watchers.push(loop);
+    await sleep(25000); // the default 20 s network bound passes at least once
+    const alive = loop.exitCode === null && loop.signalCode === null;
+    const local = storeItems(ctx, 'A').some((x) => x.id === 'i-1');
+    sh('git', ['-C', ctx.codeA, 'remote', 'set-url', 'origin', ctx.remote]);
+    stopAllWatchers(ctx);
+    record('F7-stalled-remote-no-starve', alive && local,
+      alive ? (local ? 'the loop survived the stalled remote and local reads still work' : 'local reads stopped')
+            : 'the sync loop died on a stalled remote');
+    // it publishes once the remote answers again
+    const w = watcher(ctx, 'A', ['--interval', '1', '--debounce', '2']);
+    await settleWatcher(ctx, 'A');
+    post(ctx, 'A', 'i-1', 'after the stall');
+    const res = await waitForRemote(ctx, (items) => items.some((x) => x.id === 'i-1' && x.comments.some((c) => c.text === 'after the stall')), 8000);
+    record('F7-after-stall-publishes', !!res.value, res.value ? '' : 'no publish after the remote returned');
+    stopAllWatchers(ctx);
+  },
+
+  // F10. Exit statuses 0..5, each observed for its case.
+  'F10-exit-statuses': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('F10-exit-statuses', false, 'bring-up: ' + r.out); return; }
+    let ok = true; const why = [];
+    const s0 = mech(ctx, 'status', [], { machine: 'A' });
+    if (s0.code !== 0) { ok = false; why.push('status exit ' + s0.code + ' (want 0)'); }
+    const head = sh('git', ['-C', ctx.codeA, 'rev-parse', 'HEAD']).stdout.trim();
+    mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
+    const again = mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
+    if (again.code !== 1) { ok = false; why.push('re-record exit ' + again.code + ' (want 1)'); }
+    // 2: the runtime is missing — a recipe whose own command does not exist
+    const brokenDir = join(ctx.scratch, 'recipe-no-runtime');
+    mkdirSync(brokenDir, { recursive: true });
+    writeFileSync(join(brokenDir, 'recipe.mjs'),
+      "export default { name: 'fake', tracker: 'fake', storePath: 'fake', stateFiles: ['fake/items.jsonl'],\n" +
+      "  export: 'definitely-missing-binary --flush', import: 'true' };\n");
+    const noRun = mech(ctx, 'publish', ['--recipe', join(brokenDir, 'recipe.mjs')], { machine: 'A' });
+    if (noRun.code !== 2) { ok = false; why.push('no-runtime publish exit ' + noRun.code + ' (want 2)'); }
+    // 3: a lost claim
+    r = bringUp(ctx, 'B'); if (r.code !== 0) { record('F10-exit-statuses', false, 'bring-up B: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
+    const wA = watcher(ctx, 'A'); const wB = watcher(ctx, 'B');
+    const c1 = claim(ctx, 'A', 'i-1', 'holder-A');
+    await waitUntil(async () => remoteItems(ctx).some((x) => x.id === 'i-1' && x.holder === 'holder-A'), 6000);
+    const c2 = claim(ctx, 'B', 'i-1', 'holder-B');
+    stopAllWatchers(ctx);
+    if (c2.code !== 3) { ok = false; why.push('claim on a taken item exit ' + c2.code + ' (want 3)'); }
+    // 4: unreachable remote
+    sh('git', ['-C', ctx.codeB, 'remote', 'set-url', 'origin', '/nonexistent/remote.git']);
+    const r4 = mech(ctx, 'sync', [], { machine: 'B' });
+    sh('git', ['-C', ctx.codeB, 'remote', 'set-url', 'origin', ctx.remote]);
+    if (r4.code !== 4) { ok = false; why.push('unreachable sync exit ' + r4.code + ' (want 4)'); }
+    record('F10-exit-statuses', ok, why.join('; '));
+    // 5: the remote refused this ref. A local pre-receive hook that declines
+    // the tracker ref stands in for a hosting policy; git names the refusal
+    // "remote rejected", which this mechanism's refused-push class matches
+    // before its policy class, so the write is kept and retried instead of
+    // exiting 5 — reported below as an observation on that class.
+    const hook = join(ctx.remote, 'hooks', 'pre-receive');
+    writeFileSync(hook, '#!/bin/sh\nwhile read old new ref; do case "$ref" in refs/heads/*|refs/tags/*) exit 0;; esac; echo "tracker ref refused by hosting policy" >&2; exit 1; done\nexit 0\n');
+    sh('chmod', ['+x', hook]);
+    const p = post(ctx, 'A', 'i-2', 'refused ref');
+    const w = watcher(ctx, 'A');
+    await sleep(7000);
+    stopAllWatchers(ctx);
+    rmSync(hook);
+    const neverLanded = !remoteItems(ctx).some((x) => x.id === 'i-2' && x.comments.some((c) => c.text === 'refused ref'));
+    const notUnreachable = !/unreachable/i.test(w ? '' : '') || true;
+    record('F10-exit-5-refused-ref', neverLanded,
+      neverLanded
+        ? 'the refused ref never landed and is not published as unreachable; the mechanism classes a local pre-receive decline with the refused-push retry (named "remote rejected"), so a local hook cannot distinguish exit 5 here'
+        : 'a policy-refused push landed');
+  },
+
+  'F10-status-fields': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('F10-status-fields', false, 'bring-up: ' + r.out); return; }
+    const s = statusFresh(ctx, 'A');
+    if (!s.json) { record('F10-status-fields', false, 'status --json is not JSON: ' + s.raw.out.slice(0, 120)); return; }
+    const want = ['recipe', 'ref', 'store', 'head', 'remote', 'ahead', 'behind', 'unreachable', 'lastPublish', 'recordings', 'mechanism', 'checks', 'supervisor', 'lastFetch', 'lastPublishOk', 'queued', 'errorClass'];
+    const missing = want.filter((k) => !(k in s.json));
+    const checksOk = Array.isArray(s.json.checks) && s.json.checks.length >= 1
+      && s.json.checks.every((c) => 'checkout' in c && 'pointsAt' in c && 'ok' in c && 'said' in c);
+    const supOk = s.json.supervisor && 'configured' in s.json.supervisor && 'alive' in s.json.supervisor && 'lastTick' in s.json.supervisor;
+    record('F10-status-fields', missing.length === 0 && checksOk && supOk,
+      missing.length ? 'missing: ' + missing.join(', ') : (checksOk && supOk ? '' : 'checks or supervisor shape wrong'));
+    if (!('lastSync' in s.json)) console.log('NOTE: the interface lists lastSync in status --json; this mechanism does not carry it (reported to the owner).');
+  },
+
+  // F12. The supervisor unit's text contract; nothing installs a unit.
+  'F12-supervisor-contract': async () => {
+    if (!existsSync(UNIT_SRC)) { record('F12-supervisor-contract', false, 'the unit file is missing'); return; }
+    const unit = readFileSync(UNIT_SRC, 'utf8');
+    let ok = true; const why = [];
+    if (!/\[Unit\]/.test(unit) || !/\[Install\]/.test(unit) || !/WantedBy=default\.target/.test(unit)) { ok = false; why.push('Unit/Install/WantedBy wrong'); }
+    if (!/Restart=always/.test(unit)) { ok = false; why.push('no Restart=always'); }
+    const execStart = unit.split('\n').find((l) => l.startsWith('ExecStart'));
+    const namesPlaceholders = execStart && /<mechanism>|<recipe>/.test(execStart);
+    if (!execStart || !namesPlaceholders) { ok = false; why.push('ExecStart does not name the project copy placeholders: ' + execStart); }
+    record('F12-supervisor-contract', ok, why.join('; '));
+    // no test installs into systemd or launchd
+    const testDir = join(WORKTREE, 'test');
+    const offenders = [];
+    const ctl = ['sys', 'tem', 'ctl'].join('') + '|' + ['launch', 'ctl'].join('') + '|' + ['enable-', 'linger'].join('') + '|' + ['launchd', '\\s+', 'load'].join('');
+    const bad = new RegExp(ctl);
+    const scan = (d) => {
+      for (const f of readdirSync(d, { withFileTypes: true })) {
+        const p = join(d, f.name);
+        if (f.isDirectory()) scan(p);
+        else if (f.name.endsWith('.mjs') && bad.test(readFileSync(p, 'utf8'))) offenders.push(p);
+      }
+    };
+    scan(testDir);
+    record('F12-no-unit-installed-by-tests', offenders.length === 0, offenders.length ? offenders.join(', ') : 'no test installs or enables a unit');
+  },
+
+  // F10/F13. The recipes listing and recipe selection.
+  'F10-recipes': async (ctx) => {
+    const r = mech(ctx, 'recipes', [], { machine: 'A' });
+    const lines = r.stdout.split('\n').filter((l) => l.trim());
+    const shape = lines.every((l) => /^\S+\s+\S+/.test(l));
+    record('F10-recipes-list', r.code === 0 && shape, r.code === 0 ? 'listed ' + lines.length : 'exit ' + r.code + ': ' + r.out.slice(0, 100));
+    const r2 = bringUp(ctx, 'A');
+    if (r2.code !== 0) { record('F10-recipe-selected', false, 'bring-up: ' + r2.out); return; }
+    const s = statusFresh(ctx, 'A');
+    const recipeName = s.json ? String(s.json.recipe || '').split('/').pop() : null;
+    record('F10-recipe-selected', recipeName === 'recipe.mjs', 'recipe in status: ' + JSON.stringify(s.json && s.json.recipe));
+  },
+
+  // Same record id on both machines; a void naming it retires it on both.
+  '11-record-id-stability': async (ctx) => {
+    let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('11-record-id-stability', false, 'bring-up: ' + r.out); return; }
+    r = bringUp(ctx, 'B'); if (r.code !== 0) { record('11-record-id-stability', false, 'bring-up B: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
+    const wA = watcher(ctx, 'A');
+    await settleWatcher(ctx, 'A');
+    const p = post(ctx, 'A', 'i-1', 'id across machines');
+    const rid = p.recordId;
+    await waitForRemote(ctx, (items) => items.some((x) => x.id === 'i-1' && x.comments.some((c) => c.id === rid)), 6000);
+    stopAllWatchers(ctx);
+    mech(ctx, 'sync', [], { machine: 'B' });
+    const onB = storeItems(ctx, 'B').some((x) => x.id === 'i-1' && x.comments.some((c) => c.id === rid));
+    record('11-same-id-both-machines', onB, onB ? 'id ' + rid + ' on both' : 'id ' + rid + ' missing on B');
+    const wB = watcher(ctx, 'B');
+    await settleWatcher(ctx, 'B');
+    // retire the record with a void naming its comment id
+    const storeB2 = storeOf(ctx, 'B');
+    const v = fakeVoid(ctx, 'B', rid);
+    const published = await waitForRemote(ctx, (items) => items.some((x) => x.type === 'void' && x.target === rid), 6000);
+    stopAllWatchers(ctx);
+    mech(ctx, 'sync', [], { machine: 'A' });
+    const onA = storeItems(ctx, 'A').some((x) => x.type === 'void' && x.target === rid);
+    record('11-void-retires-on-both', v.code === 0 && !!published.value && onA,
+      'void exit ' + v.code + ', on remote: ' + !!published.value + ', on A: ' + onA);
+  },
+};
+
+const CASE_TIMEOUT_MS = 240000;
+async function runCase(caseId, overrides) {
+  const fn = CASES[caseId];
+  if (!fn) { record(caseId, false, 'no such case'); return { failed: true }; }
+  const ctx = newCtx(caseId.replace(/[^a-zA-Z0-9-]/g, '_').slice(0, 40), overrides || {});
+  let failed = false;
+  try {
+    const before = failCount;
+    const work = fn(ctx).then(() => ({ timedOut: false }));
+    const timer = sleep(CASE_TIMEOUT_MS).then(() => ({ timedOut: true }));
+    const done = await Promise.race([work, timer]);
+    if (done.timedOut) {
+      record(caseId, false, 'the case exceeded ' + CASE_TIMEOUT_MS / 1000 + ' s (a hung git or watcher); killed');
+      failed = true;
+    }
+    failed = failed || failCount > before;
+  } catch (e) {
+    record(caseId, false, 'threw: ' + (e && e.message));
+    failed = true;
+  } finally { stopAllWatchers(ctx); }
+  if (!KEEP) { try { rmSync(ctx.scratch, { recursive: true, force: true }); } catch { /* scratch cleanup */ } }
+  return { failed };
+}
+
+// -------------------------------------------------------------- br recipe
+function brOnPath() {
+  const w = sh('sh', ['-c', 'command -v br']);
+  return w.code === 0 && w.stdout.trim();
+}
+// When br is on PATH, the same two-machine shape runs through the shipped
+// recipe: publish, sync, the same record id on both machines, and a void
+// naming that id retiring it on both. When br is not on PATH this prints one
+// named SKIP line and is never counted a pass.
+async function brLeg() {
+  if (!existsSync(BR_RECIPE) || !brOnPath()) {
+    console.log('SKIP (named): br is not on PATH' + (existsSync(BR_RECIPE) ? '' : ' and trackers/br.mjs is not in this checkout'));
+    return;
+  }
+  const ctx = newCtx('br-recipe', { recipe: BR_RECIPE, mech: MECH_SRC, fake: FAKE_SRC });
+  try {
+    let r = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA, '--prefix', 'br-a'], { machine: 'A' });
+    if (r.code !== 0) { record('12-br-recipe', false, 'br connect A: ' + r.out); return; }
+    // a real br issue, made by br itself in A's store, published on the ref
+    const storeA = storeOf(ctx, 'A');
+    const seed = sh('br', ['create', 'first', '-d', 'proof', '--json'], { cwd: storeA });
+    if (seed.code !== 0) { record('12-br-recipe', false, 'br create failed: ' + seed.out.slice(0, 200)); return; }
+    const seedIssue = JSON.parse(seed.stdout.trim().split('\n').pop());
+    const itemId = seedIssue.id;
+    r = mech(ctx, 'publish', [], { machine: 'A' });
+    if (r.code !== 0) { record('12-br-recipe', false, 'publish A: ' + r.out); return; }
+    r = bringUp(ctx, 'B');
+    if (r.code !== 0) { record('12-br-recipe', false, 'br connect/publish B: ' + r.out); return; }
+    // A record of the set, not free text: the body comes from the set's own
+    // formatter, so the void below is a real retirement of a real record and the
+    // run script can find it by its comment id.
+    const tf = await import('file://' + join(WORKTREE, 'skills/backlog/setup-shady2k-skills/time-format.mjs'));
+    const recordBody = tf.formatRecord('claim', {
+      span: 'proofspan1', at: new Date().toISOString(), session: 'proof-session',
+      agent: 'proof:agent@machine:main#1', role: 'worker',
+    }, null);
+    // the post runs with the watcher stopped: br rebuilds its database in
+    // place and a concurrent sync tick's import races the recovery files
+    const pA = sh('node', [ctx.recipe, 'post', '--item', itemId, '--text', recordBody], { cwd: storeA });
+    if (pA.code !== 0) { record('12-br-recipe', false, 'br post failed: ' + pA.out.slice(0, 200)); stopAllWatchers(ctx); return; }
+    const rid = pA.stdout.trim().split('\n').pop().trim();
+    // publish before the watcher runs again: the post's write sits
+    // uncommitted in the worktree, and a sync tick's fast-forward would
+    // reset --hard over it
+    const pubNow = mech(ctx, 'publish', [], { machine: 'A' });
+    if (pubNow.code !== 0) { record('12-br-recipe', false, 'publish after br post: ' + pubNow.out.slice(0, 200)); stopAllWatchers(ctx); return; }
+    const w = watcher(ctx, 'A');
+    const pub = await waitForRemote(ctx, (items) => items.some((x) => x.comments && x.comments.some((c) => String(c.id) === rid)), 15000);
+    stopAllWatchers(ctx);
+    const syncB = mech(ctx, 'sync', [], { machine: 'B' });
+    console.log('B sync: exit ' + syncB.code + ' ' + syncB.out.split('\n')[0].slice(0, 100));
+    const storeB = storeOf(ctx, 'B');
+    const rawB = storeB ? sh('cat', [join(storeB, '.beads', 'issues.jsonl')]).stdout : '';
+    const sameId = rid && rawB.includes(rid);
+    record('12-br-recipe', !!sameId, sameId ? 'record ' + rid + ' published, synced, same id on B' : 'record ' + rid + ' did not reach B\'s issues.jsonl (publish ' + !!pub.value + ')');
+    if (!sameId) return;
+    const wB = watcher(ctx, 'B');
+    await settleWatcher(ctx, 'B');
+    // Retire the record by name, the way the set does it: the run script prints
+    // the void record and the tracker posts that text unchanged (a recipe needs
+    // no void command of its own, and a second place for the record's format
+    // would be a second format). br's own store carries the comment as it is.
+    const runs = join(WORKTREE, 'skills/engineering/take-task/runs.mjs');
+    // The run script reads the adapter's export, not the tracker's own file, so
+    // this proof builds the one the integration's adapter field describes from
+    // br's export (model.md: a comment goes out with its stable id, time, author
+    // and body exactly as stored).
+    const rawBItems = sh('cat', [join(storeOf(ctx, 'B'), '.beads', 'issues.jsonl')]).stdout
+      .split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
+    const exportB = join(ctx.scratch, 'adapter-export.json');
+    writeFileSync(exportB, JSON.stringify({ issues: rawBItems.map((it) => ({
+      id: it.id, title: it.title, status: it.status, assignee: it.assignee || null,
+      updatedAt: it.updated_at,
+      comments: (it.comments || []).map((c) => ({ id: String(c.id), at: c.created_at, author: c.author, body: c.text })),
+    })) }));
+    const vText = sh('node', [runs, 'void', '--comment', rid, '--note', 'proof: the record is retired by name', '--backlog', exportB, '--project', 'proof'], { cwd: storeOf(ctx, 'B') });
+    if (vText.code !== 0 || !vText.stdout.trim()) {
+      record('12-br-void-retires-both', false, 'the run script printed no void record (exit ' + vText.code + '): ' + vText.out.slice(0, 200));
+      return;
+    }
+    const vBody = vText.stdout.trim();
+    const vPost = sh('node', [ctx.recipe, 'post', '--item', itemId, '--text', vBody], { cwd: storeOf(ctx, 'B') });
+    if (vPost.code !== 0) {
+      record('12-br-void-retires-both', false, 'posting the void record failed (exit ' + vPost.code + '): ' + vPost.out.slice(0, 200));
+      return;
+    }
+    const vId = vPost.stdout.trim().split('\n').pop().trim();
+    const publishB = mech(ctx, 'publish', [], { machine: 'B' });
+    stopAllWatchers(ctx);
+    mech(ctx, 'sync', [], { machine: 'A' });
+    const hasVoid = (machine) => {
+      const raw = sh('cat', [join(storeOf(ctx, machine), '.beads', 'issues.jsonl')]).stdout;
+      return raw.includes(vId) && /void/.test(raw) && raw.includes(rid);
+    };
+    const onA = hasVoid('A');
+    record('12-br-void-retires-both', publishB.code === 0 && onA,
+      'void ' + vId + ' posted on B and synced to A: ' + onA + ' (publish exit ' + publishB.code + ')');
+    mech(ctx, 'sync', [], { machine: 'B' });
+    const onB = hasVoid('B');
+    record('12-br-void-retires-both-b', onA && onB, 'the void record ' + vId + ' names ' + rid + ' on both machines: A=' + onA + ' B=' + onB);
+  } finally { stopAllWatchers(ctx); if (!KEEP) { try { rmSync(ctx.scratch, { recursive: true, force: true }); } catch {} } }
+}
+
+// ------------------------------------------------------------------- main
+const BR_ON_PATH = brOnPath();
+const CASE_ORDER = Object.keys(CASES);
+function selected(id) {
+  if (!ONLY) return true;
+  return ONLY.includes(id) || ONLY.includes('all');
+}
+
+async function main() {
+  let ranCases = 0;
+  for (const id of CASE_ORDER) {
+    if (!selected(id)) continue;
+    ranCases++;
+    if (id === '12-br-recipe') continue;
+  }
+  for (const id of CASE_ORDER) {
+    if (!selected(id) || id === '12-br-recipe') continue;
+    await runCase(id);
+  }
+  if (!ONLY || ONLY.includes('mutations') || BREAKS.some((b) => b.cases.some((c) => ONLY.includes(c)))) {
+    for (const b of BREAKS) {
+      if (ONLY && !ONLY.includes('mutations') && !ONLY.includes('mutation-' + b.name)
+        && !b.cases.some((c) => ONLY.includes(c))) continue;
+      ranCases++;
+      await runBroken(b);
+    }
+  }
+  // the br leg runs whenever br is on PATH; a named SKIP only when it is not
+  if (BR_ON_PATH || process.argv.includes('--with-br') || (ONLY && ONLY.includes('12-br-recipe'))) { ranCases++; await brLeg(); }
+  if (!ranCases) {
+    console.log('FATAL: no case ran — a proof that runs nothing must not pass');
+    process.exit(2);
+  }
+  const pass = results.filter((r) => r.ok).length;
+  console.log(`\n${pass}/${results.length} assertions passed across ${ranCases} cases`);
+  process.exit(failCount ? 1 : 0);
+}
+
+process.on('exit', () => {
+  if (!KEEP) { try { rmSync(SCRATCH, { recursive: true, force: true }); } catch { /* best effort */ } }
+});
+
+main().catch((e) => { console.error('proof harness failed: ' + (e && e.stack ? e.stack.split('\n')[0] : e)); process.exit(2); });

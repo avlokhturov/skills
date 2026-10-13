@@ -141,7 +141,14 @@ mechanism is what meets them, and this skill installs it:
   maximum batch age, the sync timer, the network timeout). The copy is what a
   supervisor runs: the plugin's own folder changes with every version. A setup
   run compares the installed copies byte for byte and reports the version the
-  installed mechanism reports about itself.
+  installed mechanism reports about itself, written into a `tracker-sync.version`
+  file beside the copy: the copy reports it (`node <mechanism> status`, and
+  `--expect-version <the set's version>` says whether this project's copy is older
+  than the set it came from), so a project that chose this layout learns that its
+  copy is behind and reruns setup to refresh it, without a setup version rise.
+  Record the version and the copy's provenance in the integration's **Tracker
+  synchronization** field beside the launch command, and update both when a setup
+  run replaces the copy.
 - **Start it, and prove it, as a change to the machine.** The packaged unit is a
   systemd `--user` service; keeping it after logout and reboot needs
   `loginctl enable-linger` for that user. Enabling a background process is the

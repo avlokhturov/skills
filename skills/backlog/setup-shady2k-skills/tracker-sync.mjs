@@ -34,6 +34,14 @@
  *      store here is this machine's only, and the command says so
  *   5  the remote refused this ref: a hosting policy, never counted with 4
  *
+ * BOUNDED LATENCY, and what it costs: publish waits for the debounce of quiet or
+ * the maximum batch age, whichever comes first, so a stream of writes is still
+ * published within the maximum age. Every network git operation is killed after
+ * its timeout (10 s for a push, 20 s for a fetch) and reported as unreachable or
+ * refused rather than hanging; a retry takes a short backoff while the caller
+ * holds the store lock, so a remote that accepts a connection and then stalls
+ * delays the next tick by at most that timeout, and no store write is lost to it.
+ *
  * WHY A REF OUTSIDE THE BRANCHES STARTS NO CODE CI, and how far that goes: a
  * push event's ref is a branch or a tag. GitHub documents github.ref as "the
  * fully-formed ref of the branch or tag that triggered the workflow run. For
@@ -340,7 +348,10 @@ async function fetchRemote() {
 }
 const isUnreachable = (r) => r.timedOut || /could not resolve host|unable to access|Connection (refused|reset|timed out)|Network is unreachable|Could not read from remote|Operation timed out|no route to host|terminal prompts disabled|Permission denied \(publickey\)/i.test(text(r));
 const isRefused = (r) => /rejected|non-fast-forward|fetch first|stale info/i.test(text(r));
-const isPolicy = (r) => /remote rejected|pre-receive hook declined|denied|protected|cannot lock ref/i.test(text(r));
+// A refusal the remote's own policy makes (a protected ref, a denied user) is
+// its own class and is never retried; a push a pre-receive hook merely declined
+// this once is an ordinary refusal, and the fetch-merge-push round retries it.
+const isPolicy = (r) => /denied|cannot lock ref|protected ref|not allowed|refusing to allow/i.test(text(r));
 
 /** Merge the remote's tip into ours, per item, through the recipe, per F3. */
 async function mergeAndCommit(tip) {
@@ -450,9 +461,12 @@ async function syncOnce({ needsRemote, push, quiet } = {}) {
 /** Push an immutable oid; a refused push fetches, merges and pushes again. */
 async function pushOid(oid, { quiet, attempts = 3 } = {}) {
   for (let i = 0; i < attempts; i++) {
-    const r = await git(['push', 'origin', `${oid}:${CURRENT.ref}`], { cwd: CURRENT.store, timeoutMs: 20000 });
+    const r = await git(['push', 'origin', `${oid}:${CURRENT.ref}`], { cwd: CURRENT.store, timeoutMs: 10000 });
     if (r.code === 0) return { ok: true, oid };
     if (isUnreachable(r)) { if (!quiet) say(`tracker-sync: the remote is unreachable; the write is kept here and published when it answers (${text(r).split('\n')[0]})`); return { ok: false, unreachable: true }; }
+    // A hosting policy that refuses this ref is its own class (exit 5): named,
+    // never retried as if the remote had merely moved.
+    if (isPolicy(r)) die(5, `the remote refused ${CURRENT.ref}: ${text(r)}`);
     if (isRefused(r)) {
       const remote = await fetchRemote();
       if (!remote.ok) { if (!quiet) say('tracker-sync: the push was refused and the remote is unreachable; the write is kept here'); return { ok: false, unreachable: true }; }
@@ -504,11 +518,11 @@ async function publishOnce({ quiet } = {}) {
 }
 
 async function pushOnce(oid) {
-  const r = await git(['push', 'origin', `${oid}:${CURRENT.ref}`], { cwd: CURRENT.store, timeoutMs: 20000 });
+  const r = await git(['push', 'origin', `${oid}:${CURRENT.ref}`], { cwd: CURRENT.store, timeoutMs: 10000 });
   if (r.code === 0) return { ok: true };
   if (isUnreachable(r)) return { unreachable: true, said: text(r) };
-  if (isRefused(r)) return { refused: true, said: text(r) };
   if (isPolicy(r)) die(5, `the remote refused ${CURRENT.ref}: ${text(r)}`);
+  if (isRefused(r)) return { refused: true, said: text(r) };
   die(1, `the push failed: ${text(r)}`);
 }
 
@@ -590,6 +604,8 @@ async function recordRun({ revision, checkout, fromTree }) {
       const there = (await git(['show', `${remote.tip}:.tracker-sync/recordings/${rev}.jsonl`], { cwd: CURRENT.store })).stdout;
       if (there && there !== sideText(parts))
         die(1, `${String(rev).slice(0, 12)} is already recorded on the remote with a different state; neither is moved, a person must decide`);
+      if (there)
+        die(1, `${String(rev).slice(0, 12)} is already recorded on the remote; a recording is written once and never moved, so nothing is written here`);
     }
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, sideText(parts));
@@ -618,8 +634,13 @@ async function installHooks(checkout) {
     if (existsSync(f)) {
       const t = readFileSync(f, 'utf8');
       if (t.includes('shady2k tracker-sync record')) continue;
-      writeFileSync(f, `${t.replace(/\n*$/, '\n')}${mark}${line}`);
-      say(`tracker-sync: composed the record step onto the existing ${f}`);
+      // A hook that ends in `exit 0` would end before an appended step runs, so
+      // the step goes in front of that line, and the project's own hook is kept.
+      const tail = t.match(/\n[ \t]*exit[ \t]+0[ \t]*\n?[ \t]*$/);
+      writeFileSync(f, tail && tail.index !== undefined
+        ? `${t.slice(0, tail.index)}\n${mark}${line}${t.slice(tail.index).replace(/^\n/, '')}`
+        : `${t.replace(/\n*$/, '\n')}${mark}${line}`);
+      say(`tracker-sync: composed the record step onto the existing ${f}${tail ? ' (before its own exit 0)' : ''}`);
     } else {
       writeFileSync(f, `#!/bin/sh\n${mark}${line}`);
       say(`tracker-sync: installed ${f}`);
@@ -642,7 +663,11 @@ async function connectRun(flags) {
   const missing = [];
   if ((await run('git', ['--version'], {})).missing) missing.push('git is not on PATH');
   if (await recipe('prove', {}, { cwd: repoRoot }).then((r) => r.missing || r.code === 127)) missing.push(`the tracker's own command is missing (${CURRENT.recipe.prove})`);
-  for (const c of unique) if (!existsSync(c)) missing.push(`${c} does not exist`);
+  for (const c of unique) {
+    if (!existsSync(c)) { missing.push(`${c} does not exist`); continue; }
+    const isRepo = await run('git', ['-C', c, 'rev-parse', '--git-dir'], {});
+    if (isRepo.code !== 0) missing.push(`${c} is not a git repository`);
+  }
   if (missing.length) die(2, `connect cannot start: ${missing.join('; ')}`);
   if (!flags.offline) {
     const ping = await git(['ls-remote', '--exit-code', 'origin', CURRENT.ref], { cwd: repoRoot, timeoutMs: 20000 });
@@ -650,6 +675,10 @@ async function connectRun(flags) {
     if (any.missing || any.timedOut || (any.code !== 0 && any.code !== 2) || any.code === 2)
       die(4, `the remote is unreachable (${text(any).split('\n')[0] || 'no answer'}); the store cannot be brought up to date. Pass --offline to connect anyway, and it will publish when the remote answers`);
   }
+  // Everything connect writes happens under the store's one lock: nothing of its
+  // transaction can interleave with a watcher's publish or another session's claim.
+  const release = await takeLockWait(5000);
+  try {
   const { fresh } = await ensureStore({ create: true });
   // A store the mechanism has just created carries no tracker state. The
   // tracker's own "make me a store" command is the recipe's, and it runs here
@@ -688,11 +717,17 @@ async function connectRun(flags) {
     const res = await pushOid(oid, { quiet: true });
     say(`tracker-sync: this machine is named in the store's machine ordinals${res.ok ? '' : ' (kept here, published when the remote answers)'}`);
   }
+  const envLine = (await recipe('pointer.env', {}, { cwd: CURRENT.store })).stdout.trim();
+  // NOT `--env-file`: node itself consumes that option (`--env-file=<path>`), so
+  // the mechanism would never see it and node would fail on a missing file.
+  const envFile = flags['launcher-file'] ? resolve(String(flags['launcher-file'])) : readConfig(flags, repoRoot).envFile;
+  const says = [];
   for (const c of unique) {
     const install = await recipe('pointer.install', { checkout: quote(c) }, { cwd: CURRENT.store });
     if (install.code !== 0) {
-      if (install.code === 127 || install.missing) die(2, `the pointer command is missing for ${c}`);
-      die(1, `${c} could not be pointed at the store: ${text(install)}`);
+      const done = says.map((s) => s.checkout).join(', ') || 'none';
+      if (install.code === 127 || install.missing) die(2, `the pointer command is missing for ${c}; checkouts already pointed: ${done}. connect is safe to rerun`);
+      die(1, `${c} could not be pointed at the store: ${text(install)}. Checkouts already pointed: ${done}. connect is safe to rerun`);
     }
     const check = await recipe('pointer.check', { checkout: quote(c) }, { cwd: CURRENT.store });
     const said = text(check);
@@ -700,11 +735,13 @@ async function connectRun(flags) {
     // answers with some other store is not pointing at the machine's one.
     if (check.code !== 0 || !said.includes(CURRENT.store))
       die(1, `${c} does not reach the store at ${CURRENT.store}: the pointer check said "${said || 'nothing'}" (exit ${check.code})`);
-    say(`tracker-sync: ${c} reaches ${CURRENT.store}`);
+    const variableOnly = /variable-only/.test(said);
+    if (variableOnly && !envFile)
+      die(1, `${c} reaches ${CURRENT.store} only through a variable and no launcher file was named: pass --launcher-file <file> (or put the checkout's pointer in place) so the checkout is pointed where its agents start, not in an agent's memory`);
+    says.push({ checkout: c, variableOnly });
+    say(`tracker-sync: ${c} reaches ${CURRENT.store}${variableOnly ? ' (through the variable the launcher carries)' : ' through its own pointer'}`);
     await installHooks(c);
   }
-  const envLine = (await recipe('pointer.env', {}, { cwd: CURRENT.store })).stdout.trim();
-  const envFile = flags['env-file'] ? resolve(String(flags['env-file'])) : readConfig(flags, repoRoot).envFile;
   if (envFile && envLine) {
     const lines = existsSync(envFile) ? readFileSync(envFile, 'utf8') : '';
     if (!lines.includes(envLine)) writeFileSync(envFile, `${lines.replace(/\n*$/, '\n')}${envLine}\n`);
@@ -715,13 +752,16 @@ async function connectRun(flags) {
   writeConfig(flags, repoRoot, {
     recipe: CURRENT.recipe.path, tracker: CURRENT.recipe.tracker, ref: CURRENT.ref, repo: repoRoot,
     store: CURRENT.store, checkouts: unique, envFile: envFile || null, connectedAt: nowIso(),
-    mechanismVersion: VERSION, mechanism: join(HERE, 'tracker-sync.mjs'),
+    points: says, mechanismVersion: VERSION, mechanism: join(HERE, 'tracker-sync.mjs'),
   });
   say(`tracker-sync: connected ${unique.length} checkout(s) to ${CURRENT.store} on ${CURRENT.ref} (mechanism ${VERSION})`);
+  } finally { release(); }
 }
 
 async function statusRun(flags) {
   const repoRoot = CURRENT.repoRoot;
+  const release = await takeLockWait(5000);
+  try {
   const cfg = readConfig(flags, repoRoot);
   const out = { recipe: CURRENT.recipe.path, tracker: CURRENT.recipe.tracker, ref: CURRENT.ref, store: CURRENT.store,
     mechanism: { path: join(HERE, 'tracker-sync.mjs'), version: VERSION }, recordings: 0, checks: [], queued: {}, errorClass: null };
@@ -742,13 +782,24 @@ async function statusRun(flags) {
     }
     for (const c of cfg.checkouts || []) {
       const r = await recipe('pointer.check', { checkout: quote(c) }, { cwd: CURRENT.store });
-      out.checks.push({ checkout: c, pointsAt: text(r).split('\n')[0] || null, ok: r.code === 0, said: text(r) });
+      out.checks.push({ checkout: c, pointsAt: text(r).split('\n')[0] || null, ok: r.code === 0,
+        variableOnly: /variable-only/.test(text(r)), said: text(r) });
     }
     const pid = (() => { try { return Number(readFileSync(pidPath(flags, repoRoot), 'utf8').trim()); } catch { return null; } })();
     const alive = pid ? (() => { try { process.kill(pid, 0); return true; } catch { return false; } })() : false;
     out.supervisor = { configured: !!cfg.supervisor || !!pid, alive, pid, lastTick: pid ? new Date(statSync(pidPath(flags, repoRoot)).mtimeMs).toISOString() : null };
     out.lastPublish = cfg.lastPublish || null; out.lastPublishOk = cfg.lastPublishOk ?? null;
     out.lastFetch = remote.ok ? nowIso() : cfg.lastFetch || null;
+    // How a project learns that its installed copy is older than the set's: the
+    // copy reports the version it was installed from, and whoever has the set
+    // compares it with the set's own (setup does this on every run, byte for
+    // byte, and rewrites the copy and this version file).
+    out.mechanism.installedAt = cfg.connectedAt || null;
+    const expected = flags['expect-version'] ? String(flags['expect-version']) : cfg.expectedVersion;
+    out.mechanism.update = !expected ? 'the set version is not named here'
+      : expected === VERSION ? 'up to date with the set'
+        : `older than the set (${expected}): rerun setup to refresh the copy`;
+    out.points = cfg.points || null;
     out.config = { recipe: cfg.recipe, ref: cfg.ref, store: cfg.store, connectedAt: cfg.connectedAt || null };
     out.recipes = (await loadRecipes()).map((r) => ({ path: r.path, tracker: r.tracker || null, broken: r.broken || null }));
   } catch (e) { out.errorClass = 1; out.said = e.message; }
@@ -760,8 +811,9 @@ async function statusRun(flags) {
   say(`queued      ${out.queued.unpublished ?? 0} local, ${out.queued.behind ?? 0} to take`);
   say(`recordings  ${out.recordings}`);
   say(`supervisor  ${out.supervisor?.alive ? `alive (pid ${out.supervisor.pid})` : 'not running'}`);
-  say(`mechanism   ${out.mechanism.version}`);
-  for (const c of out.checks) say(`checkout    ${c.ok ? 'ok' : 'NOT POINTED'}  ${c.checkout}  ${c.pointedAt}`);
+  say(`mechanism   ${out.mechanism.version}${out.mechanism.update ? `  (${out.mechanism.update})` : ''}`);
+  for (const c of out.checks) say(`checkout    ${c.ok ? (c.variableOnly ? 'ok via variable' : 'ok') : 'NOT POINTED'}  ${c.checkout}  ${c.pointedAt}`);
+  } finally { release(); }
 }
 
 async function exportRun(flags, pos) {
@@ -841,7 +893,7 @@ function usage(code = 1) {
     'usage: tracker-sync.mjs <command> [options]',
     '',
     'commands:',
-    '  connect [--checkout <path>]... [--all] [--from-checkout <path>] [--env-file <path>] [--machine <name>] [--prefix <id prefix>] [--offline]',
+    '  connect [--checkout <path>]... [--all] [--from-checkout <path>] [--launcher-file <path>] [--machine <name>] [--prefix <id prefix>] [--offline]',
     '  publish [--watch] [--debounce <s>] [--max-age <s>]',
     '  sync [--interval <s>]',
     '  claim --item <id> --holder <holder>',

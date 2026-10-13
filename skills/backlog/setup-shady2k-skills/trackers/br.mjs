@@ -512,7 +512,7 @@ function cmdPointerCheck(argv) {
   }
   const e = spawnSync('br', [...BR_GLOBAL, 'where'], { cwd: checkout, encoding: 'utf8', env: { ...process.env, BEADS_DB: db } });
   if (e.stdout) process.stdout.write(e.stdout);
-  if (e.status === 0) process.stdout.write(`(this checkout reaches the store through BEADS_DB=${db}: the agents' launcher must carry that line)\n`);
+  if (e.status === 0) process.stdout.write(`(variable-only: this checkout has no .beads pointer; it reaches the store only through BEADS_DB=${db}, which the agents' launcher must carry)\n`);
   else if (e.stderr) process.stderr.write(e.stderr);
   process.exit(e.status ?? 1);
 }
