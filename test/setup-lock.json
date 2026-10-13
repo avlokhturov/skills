@@ -29,5 +29,10 @@
     "templates/product/user-story.md": "db7bb0e0b037b5e3977aa61584e6d38c79a2ee773cced824f0d2f3aa8877405d",
     "templates/roadmap.md": "d4136a878c26679e34ec90408911dcbd4b29d2d2238d882b08106c8b8f317ffd",
     "templates/vision.md": "ccc2d945a579372d84a515295ac2bfb791ddf9adec7642ed42bea0d94e512bdb"
+  },
+  "layout": {
+    "tracker-sync.mjs": "8e3e76e641cfe9f901dd1976c34ebc6f8c22c4da02fe74a0fd30263dcd34fabd",
+    "trackers/br.mjs": "e50590e905b5fff10f0aee7e159b6578801ade2d52a11fc67a43da25077946b0",
+    "supervisors/systemd-user/tracker-sync.service": "61527aadabe630d5251dfa9bbfed6240c091b4fc53170e1a8e5d0c81223fa022"
   }
 }

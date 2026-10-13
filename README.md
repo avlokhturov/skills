@@ -258,7 +258,7 @@ In Claude Code the plugin prefixes them: `/shady2k-skills:ask-shady2k`.
 | skill | what it does | when to use it |
 | --- | --- | --- |
 | [ask-shady2k](skills/backlog/ask-shady2k/SKILL.md) | Reads the project and tells you where it stands, how far it has come, what is stuck and which ways forward exist, with one recommendation; or, for the team's daily sync, what was done over a period, what got in the way, the questions for others and whether the work fits by a date. Changes nothing. | At the start of a session, after a break, in an unfamiliar project, whenever you are unsure what comes next, before a standup. |
-| [setup-shady2k-skills](skills/backlog/setup-shady2k-skills/SKILL.md) | Connects the project's tracker — one copy per machine, outside the code branches and in step with every machine — cleans its queue with you, proposes settings as one profile, proves the checks work and, in a product repository, writes the product's kinds registry, with the kinds' link declarations. | Once per project, and again when a skill says the installation is out of date. |
+| [setup-shady2k-skills](skills/backlog/setup-shady2k-skills/SKILL.md) | Connects the project's tracker — one copy per machine, outside the code branches and in step with every machine, with the synchronization that keeps it so installed and started — cleans its queue with you, proposes settings as one profile, proves the checks work and, in a product repository, writes the product's kinds registry, with the kinds' link declarations. | Once per project, and again when a skill says the installation is out of date. |
 | [to-milestone](skills/backlog/to-milestone/SKILL.md) | Agrees what the next version delivers, what is left out and how many new bugs it can absorb. | When the current version is done, or a project has no agreed next step. |
 | [refine-practices](skills/engineering/refine-practices/SKILL.md) | Reads how the work has gone since the last retrospective and judges the active practices first: the classes of error that came back, each put to you with a recommended practice to add or retire, as one batch. | At the end of a milestone, when about five features have closed without one, or whenever you want to look back. |
 | [take-task](skills/engineering/take-task/SKILL.md) | Before you leave, gathers every decision a planned feature will need in one list; then builds the whole feature without you up to one pull request, deciding small gaps itself, stopping only for decisions that need you and telling you what the run's own overhead is costing. | When a feature is planned and you want it built while you are away. |
@@ -881,6 +881,27 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
 
 ## Changelog
 
+- **0.107.0** ships the off-branch tracker instead of only describing it. Setup
+  already said what a tracker kept outside the code branches owes — one store per
+  machine, published within seconds of a change, merged per item on a short timer,
+  a claim that lands once, the state of each code revision recorded under its own
+  name, and a supervisor that survives a reboot — and installed nothing, so a
+  project choosing that layout was left to build it. It now installs the means: a
+  tracker-neutral mechanism (one store per machine as a detached worktree of a ref
+  that is not a branch and not a tag, a publish debounced by seconds, a sync on a
+  short timer, a per-item merge that records the value it overwrote, a claim and a
+  status change that count only once they are on the remote, a recording per
+  revision, a lock so two of its own commands never race, and a systemd user unit
+  that can be kept after a reboot), the recipe for the tracker this repository
+  keeps (beads_rust, `br`: where its store lives, how a checkout is pointed at it,
+  how records keep one id on every machine, and how the merge records what it
+  overwrote), and proofs that run the whole thing with two simulated machines. A
+  project on another tracker is offered nothing of that tracker's: the mechanism
+  is installed with the project's own declarations for its tracker, or setup says
+  plainly that the project must supply them. macOS supervision is described, not
+  shipped. The layout needs no setup rerun: the version of the mechanisms a
+  project runs is reported by the copy it installed, and no file this setup
+  already installs changed. A tracker kept on the branches is unaffected.
 - **0.106.0** gives a product's wiki its repositories' descriptions and puts
   the product's own kinds registry in the product. Two new skills,
   `describe-repository` and `write-intended-model`, moved into the set: one

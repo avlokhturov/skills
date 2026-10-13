@@ -112,6 +112,63 @@ cannot, say so and what is instead. Record the choice in the integration,
 whose field this is. Never treat an unreachable tracker as absent or replace
 one without a decision.
 
+**Where the store lives outside the branches, setup installs the means, not the
+duties alone.** By the protocol's [**State every branch shares is not versioned
+inside one**](protocol.md) and [**The tracker stays in step across
+machines**](protocol.md), the layout is one store per machine on a ref no branch
+contains, every checkout and worktree of that machine pointed at it, a publish
+within seconds of a change, a sync on a short timer with a per-item merge that
+records the overwritten value, a claim and a status transition that count only
+once they are on the remote, a state recorded under each code revision's own
+name, and a supervisor that survives a reboot. Those are the duties; the shipped
+mechanism is what meets them, and this skill installs it:
+
+- **Choose the tracker's recipe.** The shipped recipes declare which tracker
+  they serve; `node tracker-sync.mjs recipes` lists them by their own names and
+  paths, and the project's own tracker doc says which tracker this project
+  keeps. Where one declares this project's tracker, use it. Where none does, the
+  tracker-neutral mechanism is still installed, and the project supplies the
+  recipe's declarations — its store folder and export, import and merge
+  commands, its pointer and its proof — from its own tracker's documentation, or
+  the owner is told plainly that this project must supply them and what they
+  must do. Never name one tracker's commands as a default for another's, and
+  never leave the duties stated with nothing installed.
+- **Copy what the project runs.** Copy the mechanism, the chosen recipe and the
+  supervisor template into the project at the path the other installed script
+  and check copies live, byte for byte, and record in the integration's
+  **Tracker synchronization** field their paths, the plugin version they came
+  from, the launch command, the supervisor and the bounds (the debounce, the
+  maximum batch age, the sync timer, the network timeout). The copy is what a
+  supervisor runs: the plugin's own folder changes with every version. A setup
+  run compares the installed copies byte for byte and reports the version the
+  installed mechanism reports about itself.
+- **Start it, and prove it, as a change to the machine.** The packaged unit is a
+  systemd `--user` service; keeping it after logout and reboot needs
+  `loginctl enable-linger` for that user. Enabling a background process is the
+  owner's decision and may need privilege, so it is agreed, never assumed. macOS
+  gets the same mechanism run by hand or by the project's own launch agent: the
+  shipped text describes a LaunchAgent, which starts at the user's login and not
+  necessarily at machine boot, so automatic supervision there is **not shipped**.
+  Nothing in this setup installs into a user's systemd or launchd directory
+  without being asked.
+- **Say what the no-code-CI property is.** The ref is not a branch and not a
+  tag, which is why a push to it is expected to start no code CI; the host's
+  documented behaviour is cited in the mechanism's own notes, and the proof that
+  counts is this project's run list after the first push, read by the owner or
+  by `gh run list` where the project uses it. Where the host refuses a ref
+  outside `refs/heads/` and `refs/tags/`, say plainly that this hosting is
+  unsupported for the layout and what must change.
+- **Move an existing project without losing a record.** The move is a copy of
+  the tracker's own store files into the machine's store, never a re-creation
+  through the tracker's create command, because a record is retired by a void
+  that names its comment id and ids must not move. Record the branch's last
+  in-tree revision from that revision's own committed state
+  (`record --revision <revision> --from-tree`) before the store leaves the tree,
+  so a read at that revision still answers; take the initial copy only while the
+  ref holds no store, and let every machine import and merge instead of copying
+  once it does; remove the in-branch store and the hook that narrowed what a
+  branch commits of it in one change that names the move.
+
 **The setup task comes first.** Before any repository change, find or create
 the setup task in the tracker; it owns installation, cleanup and their commits
 even before the gate exists. It is live work of the current milestone:
@@ -604,7 +661,17 @@ real commits and this repository's own checks are proved.
    it, and see the gate name it damaged; then post the run script's `void` of
    it and see the gate clear it.
    Where the store lives off the branches, prove the layout with each broken
-   case seen caught. **Read at a revision:** through the adapter, read the
+   case seen caught, and prove the mechanism itself with the shipped proofs
+   script (this skill's own repository, `node test/tracker-sync-proof.mjs`),
+   which runs them with two simulated machines: one local remote, two clones,
+   two stores, a neutral fake tracker, and the project's own tracker's recipe
+   where its command is on `PATH` — a named skip, never a pass, where it is not.
+   It proves the ref's namespace and says that a namespace alone does not prove a
+   host starts no run, so the run list stays yours to read. It cannot prove a
+   real reboot or a second real machine: name those as not yet proved here, and
+   prove them at installation on the machines that run the layout. Read every
+   bound it prints as measured on this machine, not as a promise about the
+   project's. **Read at a revision:** through the adapter, read the
    tracker at a code revision the store has a recording for, and see the read
    return that recording and say which one it is; then read at a revision the
    store never recorded, and see the read refuse and say so instead of showing

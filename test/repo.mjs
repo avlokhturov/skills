@@ -40,10 +40,26 @@ for (const error of pluginContract({
   pkg: json('package.json'),
 })) fail(error);
 
+// One narrow exemption: a tracker recipe names its tracker by definition, because
+// how a tracker is pointed at its store, exported and merged is that tracker's own,
+// and everything the set's rules say is tracker-neutral. The exemption is one folder
+// and one word list: the tracked words of test/origin-words.json are not looked for
+// there, and nothing else is exempt — the project words are still looked for in a
+// recipe, and every other file of every skill is scanned whole. The file itself is
+// left as it is.
+const RECIPE = `${join(ROOT, 'skills/backlog/setup-shady2k-skills/trackers')}/`;
+const isRecipe = (f) => f.startsWith(RECIPE);
+const trackedWords = new Set(JSON.parse(readFileSync(join(ROOT, 'test/origin-words.json'), 'utf8')).trackerWords.map((w) => w.toLowerCase()));
 for (const f of files) {
   const text = readFileSync(f, 'utf8').toLowerCase();
-  for (const w of words) if (text.includes(w.toLowerCase())) fail(`${relative(ROOT, f)} names the origin ("${w}")`);
+  for (const w of words)
+    if (text.includes(w.toLowerCase()) && !(isRecipe(f) && trackedWords.has(w.toLowerCase())))
+      fail(`${relative(ROOT, f)} names the origin ("${w}")`);
 }
+// The exemption is one folder. A recipe that names a tracker anywhere else is caught
+// above, and this says so rather than leaving the folder to be guessed at.
+for (const f of files)
+  if (!isRecipe(f) && /\/trackers\//.test(f)) fail(`${relative(ROOT, f)} is a recipe outside the one exempt folder`);
 
 const skills = files.filter((f) => f.endsWith('/SKILL.md')).map((f) => dirname(f));
 const listed = JSON.parse(readFileSync(join(ROOT, '.claude-plugin/plugin.json'), 'utf8')).skills.map((p) => join(ROOT, p));
