@@ -396,9 +396,9 @@ const BREAKS = [
     // through the other, which is what made this mutation survive once already.
     apply: (s) => ({
       mech: breakByLiteral('record-overwrite',
-        breakByLiteral('record-overwrite-local', s.mech,
-          'if (existsSync(file)) return { already:', 'if (false) return { already:'),
-        breakByLiteral('record-overwrite-conflict', s.mech,
+        breakByLiteral('record-overwrite-conflict',
+          breakByLiteral('record-overwrite-local', s.mech,
+            'if (existsSync(file)) {', 'if (false) { /* deliberate break: the local recording is written again */'),
           'if (there && there !== mine)', 'if (false) /* deliberate break: the conflict is called success */'),
         "if (there) return { already: String(rev).slice(0, 12), where: 'on the remote' };",
         "if (false) return { already: String(rev).slice(0, 12), where: 'on the remote' }; /* deliberate break: the recording is written again */"),
