@@ -771,6 +771,7 @@ async function statusRun(flags) {
     out.recordings = existsSync(recs) ? readdirSync(recs).filter((n) => n.endsWith('.jsonl')).length : 0;
     const remote = await fetchRemote();
     out.unreachable = !remote.ok;
+    out.queued = { unpublished: null, behind: null };
     if (!remote.ok) { out.errorClass = 4; out.remote = null; out.said = remote.said.split('\n')[0]; }
     else if (remote.noRef) { out.remote = null; out.errorClass = 0; out.said = 'the remote has no store ref yet'; }
     else {
@@ -832,6 +833,8 @@ async function exportRun(flags, pos) {
       const r = await syncOnce({ needsRemote: true, quiet: true });
       writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastFetch: nowIso(), lastUnreachable: !!(r && r.unreachable) });
     } finally { release(); }
+  } else {
+    process.stderr.write("tracker-sync: --offline: this store is this machine's only and the other machines' state is not in it\n");
   }
   for (const p of stateFiles()) {
     const f = join(CURRENT.store, p);
@@ -928,6 +931,10 @@ async function main() {
   CURRENT.repoRoot = await repoRootOf(flags.repo ? String(flags.repo) : process.cwd());
   CURRENT.recipe = await resolveRecipe();
   CURRENT.ref = CURRENT.recipe.ref || DEFAULT_REF;
+  // A ref a branch or a tag contains would put the tracker back inside the code
+  // branches, which is what the layout exists to avoid, and would start code CI.
+  if (/^refs\/(heads|tags)\//.test(CURRENT.ref))
+    die(1, `the recipe names ${CURRENT.ref} as the store's ref, and a branch or a tag carries the store back into the code branches: name a ref no branch contains (refs/tracker/state by default)`);
   // Only connect creates the store: every other command attaches to it and
   // fails loudly, naming connect, where there is none.
   if (cmd !== 'connect') {
