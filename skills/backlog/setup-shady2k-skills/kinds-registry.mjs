@@ -301,6 +301,8 @@ export function parseKinds(text, file) {
     const goalsLine0 = at + 1;
     let j = skip(at + 1);
     const levels = [];
+    if (j >= lines.length || !/^\s*-\s/.test(lines[j]))
+      return fail(file, goalsLine0, "the reserved `goals:` section holds no level — the schema reads one level or more, each as `- name: <name>` with its rules under it");
     while (j < lines.length && /^\s*-\s/.test(lines[j])) {
       const lead = lines[j].length - lines[j].trimStart().length;
       const entryLine = j + 1;
