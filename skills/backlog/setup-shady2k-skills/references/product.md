@@ -31,7 +31,8 @@ requirement can be followed up to a person's words:
 
 **The links are declared, never hard-coded.** Each link lives in the
 registry, under the kind whose documents carry the field: the field's
-name, the prefixes of the kinds its targets name, the word its backlink
+name, the names of the kinds its targets may be (the kinds' own words for
+a reader, the way the engine matches them), the word its backlink
 shows on the target's page, whether the field is one or many, and whether
 a document of the kind has to carry it. The set's own declarations are
 the table's: a hypothesis grows from the vision, a source or a question;

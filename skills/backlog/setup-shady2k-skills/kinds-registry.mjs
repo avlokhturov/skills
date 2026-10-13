@@ -284,6 +284,81 @@ export function parseKinds(text, file) {
   // versions it supports and degrades to plain pages, and never fails
   // silently, so a reader of the set's own words says what it reads.
   let contract;
+
+
+  const wordScalar = (word, what, line) => {
+    const read = scalar(word, line);
+    if (!/^[A-Za-z][A-Za-z0-9 _-]*$/.test(read.value))
+      return fail(file, line, `the ${what} reads "${read.value}": a reader's word of letters, digits, spaces, dashes and underscores, starting with a letter`);
+    return read;
+  };
+  const parseGoalsFrom = (/** @type {number} */ at) => {
+    // The reserved `goals:` section, where it stands (the 0021 amendment):
+    // maturity levels over the graph, per perspective. The engine keeps
+    // the section as data and names it reserved-but-unimplemented when it
+    // renders, never refusing and never dropping it; this reader reads it
+    // the same way and carries it, so the shape rules below verify it.
+    const goalsLine0 = at + 1;
+    let j = skip(at + 1);
+    const levels = [];
+    while (j < lines.length && /^\s*-\s/.test(lines[j])) {
+      const lead = lines[j].length - lines[j].trimStart().length;
+      const entryLine = j + 1;
+      const first = lines[j].trimStart().replace(/^-\s*/, "").trimStart();
+      j++;
+      const fields = [];
+      if (first !== "") fields.push({ word: first, line: entryLine });
+      while (j < lines.length && (lines[j].trim() === "" || lines[j].trim().startsWith("#"))) j++;
+      while (j < lines.length && /^\s+\S/.test(lines[j]) && lines[j].length - lines[j].trimStart().length > lead) {
+        fields.push({ word: lines[j].trim(), line: j + 1 });
+        j++;
+        while (j < lines.length && (lines[j].trim() === "" || lines[j].trim().startsWith("#"))) j++;
+      }
+      const level = Object.create(null);
+      let rules;
+      let x = 0;
+      while (x < fields.length) {
+        const field = fields[x];
+        const pair = /^([a-zA-Z-]+):\s*(.*)$/.exec(field.word);
+        if (!pair) return fail(file, field.line, "a goals level's line is no field and value — a level carries name, its optional perspective and its rules");
+        const key = pair[1];
+        if (key === "rules") {
+          if (pair[2].trim() !== "")
+            return fail(file, field.line, "the level's rules hold their list as lines under it, one rule on a line each — the registry is plain words");
+          if (rules !== undefined) return fail(file, field.line, `the level carries "rules" on it twice — each field is given once`);
+          const ruleLines = [];
+          let y = x + 1;
+          while (y < fields.length) {
+            const raw = fields[y].word;
+            if (!/^-/.test(raw)) break;
+            const rule = scalar(raw.replace(/^\s*-\s*/, ""), fields[y].line);
+            if (rule.value === "") return fail(file, fields[y].line, "a rule holds no words — a rule names a count, a coverage, a provenance agreement or an approval by role");
+            ruleLines.push(rule);
+            y++;
+          }
+          if (ruleLines.length === 0)
+            return fail(file, field.line, "the level's rules hold no rule — the list is refused empty");
+          rules = ruleLines;
+          x = y;
+          continue;
+        }
+        if (!["name", "perspective"].includes(key))
+          return fail(file, field.line, `a goals level carries "${key}", which it does not know — a level carries name, its optional perspective and its rules`);
+        if (key in level) return fail(file, field.line, `the level carries "${key}" on it twice — each field is given once`);
+        const read = wordScalar(pair[2], `level's ${key}`, field.line);
+        if (read.ok === false) return read;
+        level[key] = read;
+        x++;
+      }
+      if (!level.name) return fail(file, fields.length ? fields[0].line : entryLine, "a goals level carries no `name:`");
+      if (!rules) return fail(file, entryLine, "a goals level carries no `rules:` — the rules are what the level grants");
+      level.rules = rules;
+      levels.push(level);
+      j = skip(j);
+    }
+    return { goals: levels, goalsLine: goalsLine0, i: j };
+  };
+
   while (i < lines.length && /^contract:(\s|$)/.test(code(lines[i]).trim())) {
     const hit = /\S/.exec(code(lines[i]));
     const at = hit ? hit.index + 1 : 1;
@@ -299,6 +374,16 @@ export function parseKinds(text, file) {
     i = skip(i + 1);
   }
   if (i >= lines.length) return fail(file, Math.max(lines.length, 1), contract === undefined ? "the registry is empty: it carries the stages and the kinds" : "the registry ends after its contract version: it carries the stages and the kinds");
+
+  let goals;
+  let goalsLine;
+  if (i < lines.length && /^goals:\s*$/.test(trim(lines[i]))) {
+    const read = parseGoalsFrom(i);
+    if (read.ok === false) return read;
+    goals = read.goals;
+    goalsLine = read.goalsLine;
+    i = read.i;
+  }
 
   // `stages:` and its list of `{ id }` entries, each at the same leading spaces.
   // A flow map (`stages: {x: y}`) is the schema's "must be array": the same
@@ -331,8 +416,8 @@ export function parseKinds(text, file) {
       const key = pair[1];
       if (key === "id") {
         const id = scalar(pair[2].trim(), field.line);
-        if (id.value === "" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(id.value) || /^"/.test(pair[2].trim()))
-          return fail(file, field.line, `the stage id ${pair[2].trim() || '""'} is not a stage name: letters, digits, dashes and underscores, starting with a letter — a quoted or empty word is no stage's name`);
+        if (id.value === "" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(id.value))
+          return fail(file, field.line, `the stage id ${JSON.stringify(id.value)} is not a stage name: letters, digits, dashes and underscores, starting with a letter`);
         if ("id" in map) return fail(file, field.line, `the stage carries "id" on it twice — each stage is given once`);
         map.id = id;
       } else if (key === "name") {
@@ -356,6 +441,17 @@ export function parseKinds(text, file) {
   // fields it declares, each naming its target kinds). Plain words: an
   // inline `[a, b]` is a shape the reader does not read, so a list stands
   // as lines under its name.
+  if (i < lines.length && /^goals:\s*$/.test(trim(lines[i]))) {
+    // Between the stages and the kinds: the schema reads the sections as
+    // one object, in no order, so the same section is read here too.
+    const readMid = parseGoalsFrom(i);
+    if (readMid.ok === false) return readMid;
+    if (goals !== undefined)
+      return fail(file, readMid.goalsLine, "the registry carries the goals section twice — the reserved goals section is given once");
+    goals = readMid.goals;
+    goalsLine = readMid.goalsLine;
+    i = readMid.i;
+  }
   if (i >= lines.length || !/^kinds:/.test(trim(lines[i])))
     return fail(file, i < lines.length ? i + 1 : Math.max(lines.length, 1), "the stages list is not followed by `kinds:` with the product's kinds under it");
   if (!/^kinds:\s*$/.test(trim(lines[i])) && !/^kinds:\s*\[\s*\]\s*$/.test(trim(lines[i]))) {
@@ -366,12 +462,7 @@ export function parseKinds(text, file) {
   const kindsLine = i + 1;
   const kindsEmptyInline = /^kinds:\s*\[\s*\]\s*$/.test(trim(lines[i]));
   i = skip(i + 1);
-  const wordScalar = (word, what, line) => {
-    const read = scalar(word, line);
-    if (!/^[A-Za-z][A-Za-z0-9 _-]*$/.test(read.value))
-      return fail(file, line, `the ${what} reads "${read.value}": a reader's word of letters, digits, spaces, dashes and underscores, starting with a letter`);
-    return read;
-  };
+
   const kinds = [];
   if (kindsEmptyInline) {
     // An empty kinds list reads as the product keeping no kinds: the
@@ -586,82 +677,20 @@ export function parseKinds(text, file) {
   }
   }
 
-  // The reserved `goals:` section, where it stands (the 0021 amendment):
-  // maturity levels over the graph, per perspective. The engine keeps the
-  // section as data and names it reserved-but-unimplemented when it
-  // renders, never refusing and never dropping it; this reader reads it
-  // the same way and carries it, so the shape rules below verify it.
-  let goals;
   if (i < lines.length && /^goals:\s*$/.test(trim(lines[i]))) {
-    const goalsLine = i + 1;
-    i = skip(i + 1);
-    if (i >= lines.length || !/^\s*-\s/.test(lines[i]))
-      return fail(file, goalsLine, "the reserved `goals:` section holds no level — each level stands as `- name: <name>` with its rules under it");
-    goals = [];
-    while (i < lines.length && /^\s*-\s/.test(lines[i])) {
-      const lead = lines[i].length - lines[i].trimStart().length;
-      const entryLine = i + 1;
-      const first = lines[i].trimStart().replace(/^-\s*/, "").trimStart();
-      i++;
-      const fields = [];
-      if (first !== "") fields.push({ word: first, line: entryLine });
-      while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i++;
-      while (i < lines.length && /^\s+\S/.test(lines[i]) && lines[i].length - lines[i].trimStart().length > lead) {
-        fields.push({ word: lines[i].trim(), line: i + 1 });
-        i++;
-        while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i++;
-      }
-      const level = Object.create(null);
-      let rules;
-      let x = 0;
-      while (x < fields.length) {
-        const field = fields[x];
-        const pair = /^([a-zA-Z-]+):\s*(.*)$/.exec(field.word);
-        if (!pair) return fail(file, field.line, "a goals level's line is no field and value — a level carries name, its optional perspective and its rules");
-        const key = pair[1];
-        if (key === "rules") {
-          if (pair[2].trim() !== "")
-            return fail(file, field.line, "the level's rules hold their list as lines under it, one rule on a line each — the registry is plain words");
-          if (rules !== undefined) return fail(file, field.line, `the level carries "rules" on it twice — each field is given once`);
-          // The rules' lines were collected into `fields` as this level's
-          // own lines; they follow the rules: line itself.
-          const ruleLead = lines[field.line - 1].length - lines[field.line - 1].trimStart().length;
-          const ruleLines = [];
-          let y = x + 1;
-          while (y < fields.length) {
-            const rulePair = /^-\s+(.*)$/.exec(fields[y].word) || /^\s*-\s(.*)$/.exec(fields[y].word);
-            const raw = fields[y].word;
-            if (!/^-/.test(raw)) break;
-            const rule = scalar(raw.replace(/^\s*-\s*/, ""), fields[y].line);
-            if (rule.value === "") return fail(file, fields[y].line, "a rule holds no words — a rule names a count, a coverage, a provenance agreement or an approval by role");
-            ruleLines.push(rule);
-            y++;
-          }
-          if (ruleLines.length === 0)
-            return fail(file, field.line, "the level's rules hold no rule — the list is refused empty");
-          rules = ruleLines;
-          x = y;
-          continue;
-        }
-        if (!["name", "perspective"].includes(key))
-          return fail(file, field.line, `a goals level carries "${key}", which it does not know — a level carries name, its optional perspective and its rules`);
-        if (key in level) return fail(file, field.line, `the level carries "${key}" on it twice — each field is given once`);
-        const read = wordScalar(pair[2], `level's ${key}`, field.line);
-        if (read.ok === false) return read;
-        level[key] = read;
-        x++;
-      }
-      if (!level.name) return fail(file, fields.length ? fields[0].line : entryLine, "a goals level carries no `name:`");
-      if (!rules) return fail(file, entryLine, "a goals level carries no `rules:` — the rules are what the level grants");
-      level.rules = rules;
-      goals.push(level);
-      i = skip(i);
-    }
+    // The engine's own example writes the goals after the kinds; the same
+    // section read by the same words.
+    const read = parseGoalsFrom(i);
+    if (read.ok === false) return read;
+    if (goals !== undefined)
+      return fail(file, read.goalsLine, "the registry carries the goals section twice — the reserved goals section is given once");
+    goals = read.goals;
+    goalsLine = read.goalsLine;
+    i = read.i;
   }
-
   if (i < lines.length && trim(lines[i]) !== "")
     return fail(file, i + 1, "the registry holds a line outside stages and kinds");
-  return { ok: true, value: { contract, stages, kinds, goals } };
+  return { ok: true, value: { contract, stages, kinds, goals, goalsLine } };
 }
 
 /** Where a kind's own record stands: the kind's first field's line. */
@@ -708,8 +737,8 @@ export function verifyRegistry(text, file) {
     if (kind.evidence !== undefined)
       notes.push(out(kind.evidence.key, `the kind "${kind.name?.value ?? ""}" carries its evidence (source, ref, record); this engine version does not read imported graphs — the shape is kept as data, never dropped`));
   });
-  if (value.goals !== undefined)
-    notes.push(out(1, 'the manifest carries the reserved goals section; this engine version does not compute maturity levels — the section is kept as data, never dropped'));
+  if (value.goals !== undefined && value.goalsLine !== undefined)
+    notes.push(out(value.goalsLine, 'the manifest carries the reserved goals section; this engine version does not compute maturity levels — the section is kept as data, never dropped'));
 
   const stageNames = new Set(value.stages.map((s) => s.id.value));
   const seenStage = new Map();

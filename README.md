@@ -913,10 +913,10 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
   among the kinds — every kind of the set carries one now), its folder, its
   stage, the hint
   a person mid-stage reads, the statuses its documents may carry, and its
-  links — each link the field's name, the prefixes of the kinds its targets
-  reach, the backlink's word, whether it is required and how many it takes
-  (one or many) — the registry the wiki reads alone for its groups, stages
-  and links. Setup never resets one that stands. Templates are overridable
+  links — each link the field's name, the names of the kinds its targets
+  may be, the backlink's word, whether it is required and how many it
+  takes (one or many) — the registry the wiki reads alone for its groups,
+  stages and links. Setup never resets one that stands. Templates are overridable
   per product: the product's own template at its `templates/product/` goes
   first, the copies installed at `.shady2k/templates/` come next, the set's
   shipped defaults last. The set's CI checks out and runs nothing but the
