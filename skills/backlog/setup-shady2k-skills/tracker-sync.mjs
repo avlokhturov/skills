@@ -183,7 +183,17 @@ function takeLock(flags, repoRoot) {
 
 function git(args, { cwd, timeoutMs } = {}) {
   const flags = CURRENT.flags; const repoRoot = CURRENT.repoRoot;
-  return run('git', ['-c', `core.hooksPath=${noHooksPath(flags, repoRoot)}`, ...args], { cwd, timeoutMs });
+  // The mechanism commits to the store with its OWN identity, always: a CI runner,
+  // a container, a supervisor running as another user and a fresh machine have no
+  // user.name and user.email, and a store commit that depended on them would fail
+  // everywhere the mechanism is meant to run unattended. The machine's own name
+  // is in its config, so two machines' commits are told apart in the ref's log.
+  return run('git', [
+    '-c', `core.hooksPath=${noHooksPath(flags, repoRoot)}`,
+    '-c', 'user.name=tracker-sync',
+    '-c', `user.email=tracker-sync@${ourMachine() || 'machine'}`,
+    ...args,
+  ], { cwd, timeoutMs });
 }
 const gitOk = async (args, opts) => {
   const r = await git(args, opts);

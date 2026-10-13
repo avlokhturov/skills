@@ -28,6 +28,21 @@ const FAKE_SRC = join(FIXTURES, 'fake.mjs');
 const UNIT_SRC = join(WORKTREE, 'skills/backlog/setup-shady2k-skills/supervisors/systemd-user/tracker-sync.service');
 const BR_RECIPE = join(WORKTREE, 'skills/backlog/setup-shady2k-skills/trackers/br.mjs');
 
+// A CI runner, a container and a fresh machine have no git user.name or
+// user.email and no git configuration at all, so the proofs run the way such a
+// machine does: no global or system git config, and an empty home directory. A
+// mechanism that leaned on the user's identity would fail here, and did once
+// (the runner's "Author identity unknown"). The harness's own commits name an
+// identity of their own with -c, never through the user's configuration.
+const CLEAN_HOME = join(process.env.TMPDIR || '/tmp', `tracker-sync-proof-home-${process.pid}`);
+mkdirSync(CLEAN_HOME, { recursive: true });
+process.env.GIT_CONFIG_GLOBAL = '/dev/null';
+process.env.GIT_CONFIG_NOSYSTEM = '1';
+process.env.HOME = CLEAN_HOME;
+delete process.env.GIT_AUTHOR_NAME; delete process.env.GIT_AUTHOR_EMAIL;
+delete process.env.GIT_COMMITTER_NAME; delete process.env.GIT_COMMITTER_EMAIL;
+delete process.env.XDG_CONFIG_HOME;
+
 const KEEP = process.argv.includes('--keep');
 const WITH_BR = process.argv.includes('--with-br');
 const ONLY = (() => {
@@ -47,9 +62,11 @@ if (!existsSync(MECH_SRC)) {
 // ---------------------------------------------------------------- results
 const results = [];
 let failCount = 0;
+const lastFailure = new Map();
+const cleanFailed = new Set();
 function record(id, ok, detail, ms) {
   results.push({ id, ok, detail, ms });
-  if (!ok) failCount++;
+  if (!ok) { lastFailure.set(id, detail || ''); failCount++; }
   console.log(`${ok ? 'PASS' : 'FAIL'} ${id}${ms !== undefined ? ` (${ms} ms)` : ''}${detail ? ' — ' + detail : ''}`);
 }
 
@@ -404,6 +421,14 @@ async function runBroken(breakDef) {
     const before = failCount;
     const run = await runCase(caseId, overrides);
     failCount = before;
+    // A break is only caught by a comparison: the case must PASS clean in this
+    // environment and FAIL under the break. In the red CI run every mutation
+    // "passed" while the clean cases failed at bring-up - the environment, not the
+    // break - and a case that fails clean proves nothing about any break.
+    if (cleanFailed.has(caseId)) {
+      detail.push(caseId + ' failed clean as well, so the break proves nothing here (the clean failure is the verdict)');
+      continue;
+    }
     if (run.failed) { caught = true; detail.push(caseId + ' failed as required'); }
     else detail.push(caseId + ' still passed (case too weak)');
   }
@@ -1330,7 +1355,8 @@ async function main() {
   }
   for (const id of CASE_ORDER) {
     if (!selected(id) || id === '12-br-recipe') continue;
-    await runCase(id);
+    const r = await runCase(id);
+    if (r && r.failed) cleanFailed.add(id);
   }
   if (!ONLY || ONLY.includes('mutations') || BREAKS.some((b) => b.cases.some((c) => ONLY.includes(c)))) {
     for (const b of BREAKS) {
