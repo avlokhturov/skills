@@ -740,19 +740,28 @@ async function recordRun({ revision, checkout, fromTree }) {
       parts = stateFiles().map((p) => [p, existsSync(join(CURRENT.store, p)) ? readFileSync(join(CURRENT.store, p), 'utf8') : null]);
     }
     const file = join(CURRENT.store, '.tracker-sync', 'recordings', `${rev}.jsonl`);
+    // What the remote holds for this revision, read before anything is said about
+    // "already recorded": a recording this machine kept while the remote's publish
+    // of the same revision was refused is exactly where two different states for
+    // one revision meet, and that is a refusal for a person, never a success.
+    const there = remote.ok && !remote.noRef
+      ? (await git(['show', `${remote.tip}:.tracker-sync/recordings/${rev}.jsonl`], { cwd: CURRENT.store })).stdout
+      : '';
     // A recording that already exists is SUCCESS, not a failure: the record hook
     // runs again after a merge, and a person reruns the step after an interrupted
     // one; "this revision is recorded" is the state the step exists to reach, and
     // reporting it as an error made a session believe the revision never was
     // recorded, and made a hook fail on a revision it had recorded itself.
     // Nothing is written and nothing is pushed.
-    if (existsSync(file)) return { already: String(rev).slice(0, 12), where: 'here' };
-    if (remote.ok && !remote.noRef) {
-      const there = (await git(['show', `${remote.tip}:.tracker-sync/recordings/${rev}.jsonl`], { cwd: CURRENT.store })).stdout;
-      if (there && there !== sideText(parts))
-        die(1, `${String(rev).slice(0, 12)} is already recorded on the remote with a different state; neither is moved, a person must decide`);
-      if (there) return { already: String(rev).slice(0, 12), where: 'on the remote' };
+    if (existsSync(file)) {
+      const mine = readFileSync(file, 'utf8');
+      if (there && there !== mine)
+        die(1, `${String(rev).slice(0, 12)} is recorded here with a state the remote does not carry, and the remote holds one this machine does not: two different recordings of one revision, so neither is moved. A person must decide which state that revision had`);
+      return { already: String(rev).slice(0, 12), where: 'here' };
     }
+    if (there && there !== sideText(parts))
+      die(1, `${String(rev).slice(0, 12)} is already recorded on the remote with a different state; neither is moved, a person must decide`);
+    if (there) return { already: String(rev).slice(0, 12), where: 'on the remote' };
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, sideText(parts));
     RECORDED_REV = String(rev).slice(0, 12);
@@ -832,7 +841,18 @@ async function hooksInsideRepository(checkout, dir) {
   const top = await run('git', ['-C', checkout, 'rev-parse', '--show-toplevel'], {});
   if (top.code !== 0) return false;
   const inside = (p, root) => p === root || p.startsWith(root.endsWith('/') ? root : `${root}/`);
-  return inside(dir, resolve(top.stdout.trim()));
+  if (!inside(dir, resolve(top.stdout.trim()))) return false;
+  // Git's own metadata directory is not the repository's tracked files:
+  // `core.hooksPath` naming it (`.git/hooks`) is the folder git uses by default,
+  // nothing there is committed, and refusing it would take away a configuration
+  // that worked before this check existed. The common directory is asked too, so a
+  // linked worktree's hooks (which live in the main repository's git directory)
+  // are recognised as git's own.
+  for (const what of ['--git-dir', '--git-common-dir']) {
+    const g = await run('git', ['-C', checkout, 'rev-parse', what], {});
+    if (g.code === 0 && g.stdout.trim() && inside(dir, resolve(checkout, g.stdout.trim()))) return false;
+  }
+  return true;
 }
 
 async function installHooks(checkout) {
@@ -920,7 +940,12 @@ async function connectRun(flags) {
   for (const c of unique) {
     const plan = await hookPlan(c);
     if (!plan.inRepo || !plan.missing.length) continue;
-    die(1, `the hooks folder ${plan.dir} of ${c} is inside the repository (core.hooksPath names a folder in the tree), so the step below would commit this machine's own paths - its state directory ${machineDir(CURRENT.flags, repoRoot)} and the recipe ${CURRENT.recipe.path} - into every checkout of every machine. Nothing was written. Add the line to the project's own hook there yourself, or point core.hooksPath at a folder outside the working tree and rerun connect:\n  ${plan.wanted[0].line.trim()}`);
+    // Every missing hook is printed whole - the marker line and the command - so
+    // the project can paste it into its own hook and rerun connect: the check reads
+    // the marker, so a command without it would be refused again and the recovery
+    // the message recommends would never complete.
+    const add = plan.missing.map((h) => `  ${h.name}:\n    ${h.mark.trim()}\n    ${h.line.trim()}`).join('\n');
+    die(1, `the hooks folder ${plan.dir} of ${c} is inside the repository (core.hooksPath names a folder in the tree), so these steps would commit this machine's own paths - its state directory ${machineDir(CURRENT.flags, repoRoot)} and the recipe ${CURRENT.recipe.path} - into every checkout of every machine. Nothing was written. Put them in the project's own hooks there yourself, marker line and command together, or point core.hooksPath at a folder outside the working tree and rerun connect:\n${add}`);
   }
   if (!flags.offline) {
     // Reachability is whether the remote answers at all. `--exit-code` makes git

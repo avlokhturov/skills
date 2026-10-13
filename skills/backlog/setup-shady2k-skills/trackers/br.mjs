@@ -371,24 +371,28 @@ function cmdMerge(argv) {
     return { ...rest, comments: (comments || []).map((c) => `${c.author}\u0000${c.text}`) };
   }
 
-  // The tracker's own settings travel with the items: a setting only one side
-  // moved takes that side, and two sides that changed it differently are a
-  // refusal for a person, exactly as two different recordings of one revision
-  // are. A settings file neither side carries is not written at all.
+  // The tracker's own settings travel with the items, three-way against the merged
+  // ancestor, and ABSENCE is one of the three values: a machine that deleted the
+  // file did so to bring the tracker's own defaults back, and a merge that restored
+  // the ancestor's file would silently re-enable a setting such as exclusive claims.
+  // The side that moved away from the ancestor takes the merge; two sides that moved
+  // differently are a refusal for a person, exactly as two different recordings of
+  // one revision are.
   const [oc, tc, bc] = [sides[CONFIG_PATH], theirsSides[CONFIG_PATH], baseSides[CONFIG_PATH]];
-  let settings = null;
-  if (oc !== undefined && tc !== undefined && oc !== tc) {
-    if (bc !== undefined && bc === oc) settings = tc;
-    else if (bc !== undefined && bc === tc) settings = oc;
-    else fail(`the tracker's own settings (${CONFIG_PATH}) differ between the two sides and neither is the merged ancestor's: a person must decide which setting this store keeps`);
-  } else if (oc !== undefined) settings = oc;
-  else if (tc !== undefined) settings = tc;
+  let settings; // undefined: the merged state carries no settings file at all
+  if (oc === tc) settings = oc;
+  else if (bc === oc) settings = tc;
+  else if (bc === tc) settings = oc;
+  else fail(`the tracker's own settings (${CONFIG_PATH}) differ between the two sides and neither is the merged ancestor's: a person must decide which setting this store keeps`);
+  // The mechanism writes what --out names and leaves anything else as it is, so a
+  // merged deletion is applied here, in the store this merge runs in.
+  if (settings === undefined) fs.rmSync(path.join(process.cwd(), CONFIG_PATH), { force: true });
 
   // Write the merged state files to --out: the merged issues.jsonl, the base
   // file as the merged ancestor, and the tracker's settings when either side has
   // them.
   const mergedText = merged.map((i) => JSON.stringify(i)).join('\n') + (merged.length ? '\n' : '');
-  const settingsText = settings === null ? '' : `=== ${CONFIG_PATH}\n${settings}${settings.endsWith('\n') ? '' : '\n'}`;
+  const settingsText = settings === undefined ? '' : `=== ${CONFIG_PATH}\n${settings}${settings.endsWith('\n') ? '' : '\n'}`;
   fs.writeFileSync(want.out, `=== ${issuesPath}\n${mergedText}=== ${basePath}\n${mergedText}${settingsText}`);
   process.stdout.write(`merged ${merged.length} items\n`);
 }

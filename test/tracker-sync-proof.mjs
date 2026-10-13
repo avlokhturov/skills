@@ -308,6 +308,7 @@ const cacheKey = (m) => (m === 'A' ? 'storeA' : 'storeB');
 const CASE_OVERRIDES = {
   '18-br-settings-survive-the-move': { recipe: BR_RECIPE, br: true },
   '19-br-relink-after-a-pre-move-branch': { recipe: BR_RECIPE, br: true },
+  '20-br-settings-deletion-merges': { recipe: BR_RECIPE, br: true },
 };
 function waitForRemoteOnce(ctx) {
   for (let i = 0; i < 50; i++) { const tip = remoteTip(ctx); if (tip) return tip; }
@@ -389,7 +390,7 @@ const BREAKS = [
   },
   {
     name: 'record-overwrites-an-existing-recording',
-    cases: ['6-recording'],
+    cases: ['6-recording', '17-record-from-a-hook-and-already-recorded'],
     // Both guards are broken: the local one (the file is there) and the remote
     // one (the ref already holds it). Breaking only one leaves the case passing
     // through the other, which is what made this mutation survive once already.
@@ -397,6 +398,8 @@ const BREAKS = [
       mech: breakByLiteral('record-overwrite',
         breakByLiteral('record-overwrite-local', s.mech,
           'if (existsSync(file)) return { already:', 'if (false) return { already:'),
+        breakByLiteral('record-overwrite-conflict', s.mech,
+          'if (there && there !== mine)', 'if (false) /* deliberate break: the conflict is called success */'),
         "if (there) return { already: String(rev).slice(0, 12), where: 'on the remote' };",
         "if (false) return { already: String(rev).slice(0, 12), where: 'on the remote' }; /* deliberate break: the recording is written again */"),
     }),
@@ -464,6 +467,16 @@ const BREAKS = [
     apply: (s) => ({ recipe: breakByLiteral('br-settings', s.recipe,
       "stateFiles: ['.beads/issues.jsonl', '.beads/beads.base.jsonl', '.beads/config.yaml'],",
       "stateFiles: ['.beads/issues.jsonl', '.beads/beads.base.jsonl'], /* deliberate break */") }),
+  },
+  {
+    name: 'br-settings-deletion-restored',
+    cases: ['20-br-settings-deletion-merges'],
+    sources: { recipe: BR_RECIPE },
+    // a deleted settings file is restored from the unchanged side (the rule before
+    // the fix: absence was no value of the three-way merge)
+    apply: (s) => ({ recipe: breakByLiteral('br-settings-delete', s.recipe,
+      '  else if (bc === tc) settings = oc;',
+      '  else if (bc === tc) settings = oc !== undefined ? oc : tc; /* deliberate break: a deletion is restored */') }),
   },
   {
     name: 'br-pointer-overwrites-a-tracker-folder',
@@ -1268,15 +1281,36 @@ const CASES = {
     sh('chmod', ['+x', join(hooks, 'post-commit')]);
     sh('git', ['-C', ctx.codeA, 'config', 'core.hooksPath', 'hooks']);
     const before = readFileSync(join(hooks, 'post-commit'), 'utf8');
-    const r = bringUp(ctx, 'A');
+    // the refusal is read whole, not through the bring-up summary: the case pastes
+    // back exactly what it prints
+    const r = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA], { machine: 'A' });
     const after = readFileSync(join(hooks, 'post-commit'), 'utf8');
     const added = ['post-merge', 'post-checkout'].filter((n) => existsSync(join(hooks, n)));
-    const line = (r.out.match(/tracker-sync\.mjs'? record --revision[^\n]*/) || [])[0] || '';
-    sh('git', ['-C', ctx.codeA, 'config', '--unset', 'core.hooksPath']);
-    const ok = r.code === 1 && after === before && added.length === 0 && /record/.test(line);
-    record('16-hooks-inside-the-repository-refused', ok,
+    const blocks = [...r.out.matchAll(/^\s{2}(post-[a-z]+):\n\s+(# shady2k[^\n]*)\n\s+(node [^\n]*)$/gm)];
+    record('16-hooks-inside-the-repository-refused', r.code === 1 && after === before && added.length === 0 && blocks.length === 3,
       'connect exit ' + r.code + ', the tracked hook is unchanged: ' + (after === before)
-      + ', files written beside it: ' + JSON.stringify(added) + ', it prints the line to add: ' + JSON.stringify(line.slice(0, 120)));
+      + ', files written beside it: ' + JSON.stringify(added) + ', recognizable steps printed: ' + blocks.length);
+    // The repair it prints has to complete the setup, marker line and command
+    // together: a command without the marker would be refused again, and connect
+    // could never finish in this project.
+    for (const [, name, mark, line] of blocks) {
+      writeFileSync(join(hooks, name), `#!/bin/sh\n${mark}\n${line}\n`);
+      sh('chmod', ['+x', join(hooks, name)]);
+    }
+    const again = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA], { machine: 'A' });
+    const pasted = blocks.every(([, name, mark, line]) => {
+      const t = readFileSync(join(hooks, name), 'utf8');
+      return t.includes(mark) && t.includes(line);
+    });
+    record('16-the-printed-repair-completes-connect', again.code === 0 && pasted,
+      'connect exit ' + again.code + ', the project\'s own hooks carry what was printed: ' + pasted + ' ' + (again.stderr || '').split('\n')[0].slice(0, 120));
+    // Git's own metadata directory is not the repository's files: pointing the
+    // hooks at it is the default folder, and it was accepted before this check
+    sh('git', ['-C', ctx.codeA, 'config', 'core.hooksPath', '.git/hooks']);
+    const inGit = mech(ctx, 'connect', ['--machine', 'A', '--checkout', ctx.codeA], { machine: 'A' });
+    sh('git', ['-C', ctx.codeA, 'config', '--unset', 'core.hooksPath']);
+    record('16-git-metadata-hooks-dir-is-allowed', inGit.code === 0,
+      'connect exit ' + inGit.code + ' with core.hooksPath=.git/hooks ' + (inGit.stderr || '').split('\n')[0].slice(0, 140));
   },
 
   // 17. The record step run from the hook git itself runs: the recording lands, and
@@ -1306,6 +1340,17 @@ const CASES = {
     const body2 = existsSync(file) ? readFileSync(file, 'utf8') : '';
     record('17-already-recorded-is-success', again.code === 0 && body2 === body && /already recorded/i.test(again.out),
       'exit ' + again.code + ', the recording is unchanged: ' + (body2 === body) + ', ' + (again.stdout || again.out).split('\n')[0].slice(0, 100));
+    // A recording this machine kept while the remote's publish of the same revision
+    // is refused leaves two different states for one revision. That is the conflict
+    // a person decides, so it is never reported as "already recorded".
+    const published = mech(ctx, 'publish', [], { machine: 'A' });
+    const tip = remoteTip(ctx);
+    const onRemote = tip ? sh('git', ['-C', ctx.remote, 'cat-file', '-p', tip + ':.tracker-sync/recordings/' + rev + '.jsonl']).stdout : '';
+    writeFileSync(file, `${body}different state\n`);
+    const conflicting = mech(ctx, 'record', ['--revision', rev, '--checkout', ctx.codeA], { machine: 'A' });
+    writeFileSync(file, body);
+    record('17-a-conflicting-recording-needs-a-person', published.code === 0 && !!onRemote && conflicting.code === 1 && /person|different/i.test(conflicting.out),
+      'the remote holds the recording: ' + !!onRemote + ', record exit ' + conflicting.code + ' — ' + (conflicting.stderr || conflicting.out).split('\n')[0].slice(0, 140));
   },
 
   // 18. The tracker's own settings travel with the items: a setting that changes the
@@ -1365,6 +1410,47 @@ const CASES = {
     const relinked = (() => { const st = lstatSync(pointer, { throwIfNoEntry: false }); return !!st && st.isSymbolicLink() && resolve(readlinkSync(pointer)) === resolve(join(store, '.beads')); })();
     record('19-the-checkout-hook-relinks', c2.code === 0 && co.code === 0 && relinked,
       'checkout exit ' + co.code + ', the hook put the pointer back: ' + relinked);
+  },
+
+  // 20. The tracker's own settings file merges three-way, absence included: the
+  // side that deleted it did so to bring the tracker's defaults back, and a merge
+  // that restored the ancestor's file would re-enable the setting silently.
+  '20-br-settings-deletion-merges': async (ctx) => {
+    if (!brOnPath()) { console.log('SKIP (named): br is not on PATH, so the tracker\'s own settings cannot be merged here'); return; }
+    const r = bringUp(ctx, 'A');
+    if (r.code !== 0) { record('20-br-settings-deletion-merges', false, 'bring-up A: ' + r.out.split('\n').slice(0,3).join(' | ')); return; }
+    const store = storeOf(ctx, 'A');
+    const cfg = 'claim_exclusive: true\n';
+    // the merge only needs the tracker's own state files in the sides and the
+    // store's machine ordinals, so the item is written here rather than through
+    // the tracker's create command
+    const issues = `${JSON.stringify({ id: 'br-x-1', title: 'settings proof', status: 'open', updated_at: '2026-10-13T10:00:00Z' })}\n`;
+    const files = {};
+    for (const n of ['base', 'ours', 'theirs', 'out', 'order', 'orderLocal']) files[n] = join(ctx.scratch, 'm-' + n + '.txt');
+    writeFileSync(files.order, '');
+    writeFileSync(files.orderLocal, '');
+    // a side file in the shape the mechanism builds: the state files with markers
+    const side = (p, withCfg) => writeFileSync(p, `=== .beads/issues.jsonl\n${issues}=== .beads/beads.base.jsonl\n${issues}`
+      + (withCfg ? `=== .beads/config.yaml\n${cfg}` : ''));
+    const merge = () => sh('node', [ctx.recipe, 'merge', '--ours', files.ours, '--theirs', files.theirs, '--base', files.base,
+      '--out', files.out, '--order', files.order, '--order-local', files.orderLocal, '--store', store], { cwd: store });
+    // ours deleted the settings, theirs left the ancestor's
+    writeFileSync(join(store, '.beads', 'config.yaml'), cfg);
+    side(files.base, true); side(files.theirs, true); side(files.ours, false);
+    const m1 = merge();
+    const gone1 = !readFileSync(files.out, 'utf8').includes('.beads/config.yaml') && !existsSync(join(store, '.beads', 'config.yaml'));
+    // theirs deleted it, ours left the ancestor's
+    writeFileSync(join(store, '.beads', 'config.yaml'), cfg);
+    side(files.ours, true); side(files.theirs, false);
+    const m2 = merge();
+    const gone2 = !readFileSync(files.out, 'utf8').includes('.beads/config.yaml') && !existsSync(join(store, '.beads', 'config.yaml'));
+    // a settings file only one side carries is carried, never dropped
+    side(files.base, false); side(files.ours, true); side(files.theirs, false);
+    const m3 = merge();
+    const kept = readFileSync(files.out, 'utf8').includes('claim_exclusive: true');
+    record('20-br-settings-deletion-merges', m1.code === 0 && m2.code === 0 && m3.code === 0 && gone1 && gone2 && kept,
+      'merge exits ' + m1.code + '/' + m2.code + '/' + m3.code + ', deleted on ours: ' + gone1 + ', deleted on theirs: ' + gone2
+      + ', carried when only one side has it: ' + kept);
   },
 };
 
