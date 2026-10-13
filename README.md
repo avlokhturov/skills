@@ -881,6 +881,11 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
 
 ## Changelog
 
+- **0.107.1** refuses a registry's link field that carries the name of one of the
+  generic fields every document carries — `id`, `kind`, `status`, `links`, in any
+  spelling — at the field's own line, as the published contract now refuses it.
+  Setup names the line instead of reading the field as the kind's own, and no file
+  setup installs changed.
 - **0.107.0** ships the off-branch tracker instead of only describing it. Setup
   already said what a tracker kept outside the code branches owes — one store per
   machine, published within seconds of a change, merged per item on a short timer,

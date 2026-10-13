@@ -47,7 +47,10 @@
  * kind no declaration names is a finding where the wiki reads it, not a
  * dropped word, and this reader says so for its own reads: a target that
  * names no prefix the registry's kinds carry is refused. Fields nobody
- * knows are refused, the way the contract's schema refuses them. This
+ * knows are refused, the way the contract's schema refuses them, and a
+ * link declares a field of the kind's own: one named after a generic
+ * field every document carries (id, kind, status, links) is refused at
+ * the field's line, because the reader reads those fields itself. This
  * reader is a line reader: it refuses on the lines it sees (the shapes,
  * the places, the words, and the YAML features it cannot read — anchors,
  * aliases, merge keys, custom tags); what a YAML parser would see beyond
@@ -125,6 +128,10 @@ export const KINDS = [
 ]
 /** The fields each kind carries, as the contract names them. */
 const FIELDS = ["name", "prefix", "folder", "stage", "hint"];
+/** The generic fields every document carries: the reader reads those itself,
+ *  so a kind's link declares a field of its own and never one of these
+ *  names, however it is spelled. */
+const GENERIC_DOCUMENT_FIELDS = ["id", "kind", "status", "links"];
 const FIELD_WORDS = {
   name: "the word the wiki shows for the kind",
   prefix: "the kind's id prefix, one to four capitals, unique among the kinds",
@@ -291,6 +298,15 @@ export function parseKinds(text, file) {
     const read = scalar(word, line);
     if (!/^[A-Za-z][A-Za-z0-9 _-]*$/.test(read.value))
       return fail(file, line, `the ${what} reads "${read.value}": a reader's word of letters, digits, spaces, dashes and underscores, starting with a letter`);
+    return read;
+  };
+  /** A link's field name: a reader's word that is not one of the generic
+   *  fields every document carries, which the reader reads itself. */
+  const linkField = (word, line) => {
+    const read = wordScalar(word, "link's field", line);
+    if (read.ok === false) return read;
+    if (GENERIC_DOCUMENT_FIELDS.includes(read.value.toLowerCase()))
+      return fail(file, line, `a link's field reads "${read.value}": the generic fields every document carries are ${GENERIC_DOCUMENT_FIELDS.join(", ")} — a link declares a field of the kind's own, never one of these`);
     return read;
   };
   const parseGoalsFrom = (/** @type {number} */ at) => {
@@ -584,7 +600,7 @@ export function parseKinds(text, file) {
                 return fail(file, entryLine, "a link stands as `- field: <the field's name>` with its fields under it");
               if (pair2[1] !== "field")
                 return fail(file, entryLine, `a link carries "${pair2[1]}" first: the field's name is its first word — its other fields stand under it`);
-              const firstRead = wordScalar(pair2[2], "link's field", entryLine);
+              const firstRead = linkField(pair2[2], entryLine);
               if (firstRead.ok === false) return firstRead;
               link.field = firstRead;
               while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i++;
@@ -603,7 +619,7 @@ export function parseKinds(text, file) {
               if (subKey === "field") {
                 if (link.field !== undefined)
                   return fail(file, subLine, `the link carries "field" on it twice — each field is given once`);
-                const fieldRead = wordScalar(subPair[2], "link's field", subLine);
+                const fieldRead = linkField(subPair[2], subLine);
                 if (fieldRead.ok === false) return fieldRead;
                 link.field = fieldRead;
               } else if (subKey === "targets") {
