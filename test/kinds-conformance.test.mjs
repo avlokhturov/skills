@@ -16,9 +16,10 @@
  *     carry, a field no kind knows, a list emptied where the schema reads
  *     one.
  *
- * The set's own copy stands at test/schemas/product-registry.schema.json,
- * byte for byte the published words of contract version 1; moving it is a
- * deliberate change on each side.
+ * The set's own copies stand at test/schemas/product-registry.schema.json
+ * and test/schemas/registry-cases.json, pinned byte for byte to the
+ * published words of contract version 1; moving either is a deliberate
+ * change on each side.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -224,4 +225,57 @@ test("every link field reads back as written, the one after the targets list inc
     assert.equal(refused.ok, false, `"${field}" right after the targets list is read past, not refused`);
     assert.match(refused.message, /^docs\/kinds\.yaml:14: /);
   }
+});
+
+// ---- the contract's own cases, over the set's reader ----------------------
+
+/** A pinned byte copy of the published contract's registry cases (version 1),
+ *  beside the schema copy. Moving it is a deliberate change, like the schema. */
+const CASES = JSON.parse(readFileSync(join(ROOT, "test/schemas/registry-cases.json"), "utf8")).cases;
+
+/** The set's own policy on top of the contract: every kind the set owns is
+ *  carried, each at the set's stage. A finding of these classes is the set's
+ *  rule, not a reading of the contract, and is set aside for every case. */
+const SET_POLICY = [/ stands in no kind of the registry /, / kind is filed under \S+: its stage is /];
+
+/** Where the set's reader says the same refusal on another line, or refuses
+ *  by its own policy what the contract reads. Each is named and must still
+ *  hold: an exception that no longer differs fails the run. */
+const EXCEPTIONS = {
+  "no-stages": { line: 2, why: "the line reader names the line that stands where stages: belongs; the contract's check names the mapping at line 1" },
+  "parse-error": { line: 4, why: "the line reader names the line with the unclosed flow; the YAML parser names the end of the text" },
+  "statuses-with-links-read": { policy: true, why: "the set files the Use case kind under requirements, and the case files it under design" },
+  "a-kind-may-name-its-document-storage": { policy: true, why: "the set files the User story kind under requirements, and the case files it under idea" },
+};
+
+test("the set's reader judges the contract's own cases as the contract does, its named exceptions aside", async () => {
+  const writer = await import("file://" + join(SETUP, "kinds-registry.mjs"));
+  assert.ok(CASES.length > 0, "the cases copy holds no case");
+  const wrong = [];
+  for (const c of CASES) {
+    const read = writer.verifyRegistry(c.text ?? "", "docs/kinds.yaml");
+    const all = read.findings;
+    const own = all.filter((f) => !SET_POLICY.some((rule) => rule.test(f)));
+    const refuses = "message" in c;
+    const exception = EXCEPTIONS[c.name];
+    if (exception?.policy) {
+      if (refuses || own.length || !all.length)
+        wrong.push(`${c.name}: named as refused by the set's policy, and it is not so (${all[0] ?? "it verified"})`);
+      continue;
+    }
+    if (!refuses) {
+      if (own.length) wrong.push(`${c.name}: the contract reads it, and the set refuses it: ${own[0]}`);
+      continue;
+    }
+    if (!own.length) { wrong.push(`${c.name}: the contract refuses it at line ${c.line}, and the set reads it`); continue; }
+    if (c.line === undefined) continue;
+    const at = exception?.line ?? c.line;
+    if (!own.some((f) => f.startsWith(`docs/kinds.yaml:${at}: `)))
+      wrong.push(`${c.name}: refused at line ${at} is expected, and the set says ${own[0]}`);
+    else if (exception && own.some((f) => f.startsWith(`docs/kinds.yaml:${c.line}: `)))
+      wrong.push(`${c.name}: the named exception no longer differs — the set refuses at line ${c.line} as the contract does; drop the exception`);
+  }
+  for (const name of Object.keys(EXCEPTIONS))
+    if (!CASES.some((c) => c.name === name)) wrong.push(`${name}: a named exception for a case the copy does not carry`);
+  assert.deepEqual(wrong, []);
 });

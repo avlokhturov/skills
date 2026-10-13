@@ -904,8 +904,10 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
   per product: the product's own template at its `templates/product/` goes
   first, the copies installed at `.shady2k/templates/` come next, the set's
   shipped defaults last. The set's CI checks out and runs nothing but the
-  set — the registry conformance reads the set's own copy of the published
-  schema with the set's own code, so no repository depends on another.
+  set — the registry conformance reads the set's own pinned copies of the
+  published schema and of the contract's registry cases with the set's own
+  code, so no repository depends on another. A registry without its
+  `contract: 1` line is refused, as the wiki's own check refuses it.
   A project that is not a product repository needs nothing from this
   release, and no project is asked to rerun setup.
 

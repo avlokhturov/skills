@@ -1,7 +1,8 @@
 # The set's checks: the gate's selftests, the repo rules and the set's own
 # tests, the kinds registry's conformance among them. Nothing here checks out
 # or runs another repository: the registry is validated against the set's own
-# copy of the product-repository contract's published schema.
+# pinned copies of the product-repository contract's published schema and
+# registry cases.
 name: test
 
 on:

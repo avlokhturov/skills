@@ -278,8 +278,9 @@ export function parseKinds(text, file) {
   };
   let i = skip(0);
   // `contract: 1` before the stages: the version the registry's words are
-  // written against. A registry without it was written before the contract
-  // carried versions, and is read as one the reader reads; a named version
+  // written against. A registry without it is refused at line 1, as the
+  // contract's check refuses it, so the set never calls verified a file the
+  // wiki will not read; a named version
   // other than 1 is refused with the version's name — the wiki names the
   // versions it supports and degrades to plain pages, and never fails
   // silently, so a reader of the set's own words says what it reads.
@@ -376,6 +377,8 @@ export function parseKinds(text, file) {
     i = skip(i + 1);
   }
   if (i >= lines.length) return fail(file, Math.max(lines.length, 1), contract === undefined ? "the registry is empty: it carries the stages and the kinds" : "the registry ends after its contract version: it carries the stages and the kinds");
+  if (contract === undefined)
+    return fail(file, 1, "the registry carries no contract version — its first line is `contract: 1`, the version its words are written against");
 
   let goals;
   let goalsLine;
@@ -1039,6 +1042,14 @@ export function selftest(dir) {
     findings.push(`${path} differs from the set's rendered registry — the example the conformance run reads is the writer's own bytes; rerun the writer (node kinds-registry.mjs --root <a copy of the example product>) and commit what it changed, never a hand edit`);
   const verified = verifyRegistry(kept, "docs/kinds.yaml");
   if (!verified.ok) findings.push(...verified.findings);
+  // The example without its contract line is refused at line 1, never
+  // verified: the contract's check refuses it, and so does the set.
+  const unversioned = verifyRegistry(kept.replace(/^contract: 1\n/, ""), "docs/kinds.yaml");
+  if (!kept.startsWith("contract: 1\n"))
+    findings.push(`${path} does not open with its contract line`);
+  else if (unversioned.ok || !unversioned.findings.some((f) => f.startsWith("docs/kinds.yaml:1: the registry carries no contract version")))
+    findings.push(`the example without its contract line is not refused at line 1: ${unversioned.ok ? "it verified" : unversioned.findings[0]}`);
+  else words.push("kinds registry: a registry without its contract line is refused at line 1");
   templatesWalk(findings, words);
   if (verified.ok) words.unshift(`kinds registry: the example at ${path} is the writer's own bytes and verifies under the set's reader`);
   return verified.ok ? { ok: true, findings, words } : { ok: false, findings, words: [] };
