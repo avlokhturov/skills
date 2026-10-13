@@ -332,6 +332,14 @@ function cmdMerge(argv) {
             seen.set(key, c);
             continue;
           }
+          // Two records that both came from the machine-id bands, with one id
+          // and different content, cannot be resolved by moving either: a void
+          // that names that id would then retire the wrong record. This is the
+          // case the bands exist to prevent, so it is refused and named rather
+          // than quietly renumbered.
+          if (Number(c.id) >= 1000000 && Number(prev.id) >= 1000000) {
+            fail(`two different records claim the id ${c.id} on one item: no machine may reuse one, and moving either would move what a void names. A person must decide`);
+          }
           const c2 = { ...c, id: freshId() };
           out.push(c2);
           seen.set(String(c2.id), c2);
@@ -495,26 +503,19 @@ function cmdPointerInstall(argv) {
 function cmdPointerCheck(argv) {
   const checkout = opt(argv, '--checkout');
   if (!checkout) fail('pointer-check: missing --checkout <path>');
+  // The proof is the checkout's OWN pointer: `br` is run in that checkout with
+  // the environment it has, and this command never invents a variable of its
+  // own. A checkout that reaches the store only because some private variable
+  // was injected for the check is not pointed at the store, and saying it is
+  // would certify exactly the state the layout exists to prevent.
   const r = spawnSync('br', [...BR_GLOBAL, 'where'], { cwd: checkout, encoding: 'utf8' });
-  if (r.status === 0) {
-    process.stdout.write(r.stdout);
-    return;
-  }
-  // A checkout outside the product's folder finds nothing by walking up, and is
-  // pointed at the store by the variable instead. That is still one store: the
-  // proof is that `br where` names the same one, so the fallback says which
-  // checkout needed the variable.
-  const store = storeDir(process.cwd());
-  const db = path.join(store, 'beads.db');
-  if (!fs.existsSync(db)) {
+  if (r.stdout) process.stdout.write(r.stdout);
+  if (r.status !== 0) {
     if (r.stderr) process.stderr.write(r.stderr);
+    process.stderr.write(`${checkout} does not reach a store: run the mechanism's connect for this checkout, or give its agents the launcher line the integration records\n`);
     process.exit(r.status ?? 1);
   }
-  const e = spawnSync('br', [...BR_GLOBAL, 'where'], { cwd: checkout, encoding: 'utf8', env: { ...process.env, BEADS_DB: db } });
-  if (e.stdout) process.stdout.write(e.stdout);
-  if (e.status === 0) process.stdout.write(`(variable-only: this checkout has no .beads pointer; it reaches the store only through BEADS_DB=${db}, which the agents' launcher must carry)\n`);
-  else if (e.stderr) process.stderr.write(e.stderr);
-  process.exit(e.status ?? 1);
+  process.exit(0);
 }
 
 function cmdPointerEnv() {

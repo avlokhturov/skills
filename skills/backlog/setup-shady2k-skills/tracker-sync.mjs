@@ -152,15 +152,24 @@ function takeLock(flags, repoRoot) {
       writeFileSync(p, `${JSON.stringify({ pid: process.pid, at: nowIso() })}\n`);
       closeSync(fd);
       LOCK_HELD = p;
-      return () => { try { unlinkSync(p); } catch {} finally { LOCK_HELD = null; } };
+      // A holder says so while it holds: the lock's own timestamp is refreshed,
+      // so a lock left by a killed process (or by a pid the system has since
+      // handed to something else) is told apart from a slow live one.
+      const beat = setInterval(() => { try { const now = new Date(); statSync(p); writeFileSync(p, readFileSync(p)); } catch {} }, 2000);
+      beat.unref();
+      return () => { clearInterval(beat); try { unlinkSync(p); } catch {} finally { LOCK_HELD = null; } };
     } catch (e) {
       if (e.code !== 'EEXIST') throw new Error(`cannot take the store lock ${p}: ${e.message}`);
       let held = { pid: null, at: null };
       try { held = JSON.parse(readFileSync(p, 'utf8')); } catch {}
       const age = (() => { try { return Date.now() - statSync(p).mtimeMs; } catch { return 0; } })();
       const alive = held.pid ? (() => { try { process.kill(held.pid, 0); return true; } catch { return false; } })() : false;
-      if (!alive || age > 10 * 60 * 1000) {
-        say(`tracker-sync: breaking a lock whose process is gone (${p}, pid ${held.pid}, ${Math.round(age / 1000)}s old)`);
+      // A lock is broken only when its holder has stopped saying so: either its
+      // process is gone, or nobody has refreshed the lock for a minute. A live,
+      // slow holder keeps refreshing it and is never robbed.
+      const stale = age > 60000;
+      if (!alive || stale) {
+        say(`tracker-sync: breaking a lock ${!alive ? 'whose process is gone' : 'nothing has refreshed for a minute'} (${p}, pid ${held.pid}, ${Math.round(age / 1000)}s old)`);
         try { unlinkSync(p); } catch {}
         continue;
       }
@@ -228,7 +237,10 @@ async function resolveRecipe() {
 }
 
 /** Run one of the recipe's declared commands in the store. */
-async function recipe(decl, map, { cwd, timeoutMs = 60000 } = {}) {
+// Bounded on purpose: a tracker command that hangs (its own store lock, a slow
+// disk) must not hold the store's lock with it, or the next session's claim
+// would wait on it. 20 s is longer than any export this mechanism runs.
+async function recipe(decl, map, { cwd, timeoutMs = 20000 } = {}) {
   const r = CURRENT.recipe;
   const raw = decl.split('.').reduce((o, k) => (o === null || o === undefined ? o : o[k]), r);
   if (!raw) die(1, `the recipe ${r.path} declares no ${decl}`);
@@ -353,7 +365,30 @@ const isRefused = (r) => /rejected|non-fast-forward|fetch first|stale info/i.tes
 // this once is an ordinary refusal, and the fetch-merge-push round retries it.
 const isPolicy = (r) => /denied|cannot lock ref|protected ref|not allowed|refusing to allow/i.test(text(r));
 
+/** Which machine this store belongs to, and keeping that true.
+ *
+ * The machine ordinals travel on the ref so that record ids never collide, but
+ * which machine THIS one is must not travel: taking the remote's file wholesale
+ * (a fast-forward, a merge, a rollback) would hand this machine the other's
+ * ordinal, and the two would mint the same record ids. The name is in the
+ * machine's own config, written by connect. */
+function ourMachine() {
+  return readConfig(CURRENT.flags, CURRENT.repoRoot).machine || null;
+}
+function keepIdentity() {
+  const me = ourMachine();
+  if (!me || !CURRENT.store) return;
+  const f = join(CURRENT.store, '.tracker-sync', 'machines.json');
+  if (!existsSync(f)) return;
+  try {
+    const d = JSON.parse(readFileSync(f, 'utf8'));
+    if (d.thisMachine !== me) writeFileSync(f, `${JSON.stringify({ ...d, thisMachine: me }, null, 2)}\n`);
+  } catch {}
+}
+
 /** Merge the remote's tip into ours, per item, through the recipe, per F3. */
+/** Merge the remote's tip into ours, per item, through the recipe, per F3.
+ * Caller holds the lock: this is local work only. */
 async function mergeAndCommit(tip) {
   const head = await headOid();
   const base = (await git(['merge-base', head, tip], { cwd: CURRENT.store })).stdout.trim();
@@ -388,11 +423,10 @@ async function mergeAndCommit(tip) {
     if (ca === null) { mkdirSync(dirname(join(CURRENT.store, p)), { recursive: true }); writeFileSync(join(CURRENT.store, p), cb); }
   }
   await recipeIsland(head, tip);
+  keepIdentity();
   await recipeOk('import', {});
-  const oid = await commitState(`tracker store: merge ${head.slice(0, 12)} and ${tip.slice(0, 12)} per item`, [head, tip]);
-  return oid;
+  return commitState(`tracker store: merge ${head.slice(0, 12)} and ${tip.slice(0, 12)} per item`, [head, tip]);
 }
-
 /** The mechanism's own files under .tracker-sync travel beside the state. */
 async function recipeIsland(head, tip) {
   const names = (await git(['ls-tree', '-r', '--name-only', tip, '--', '.tracker-sync'], { cwd: CURRENT.store }))
@@ -420,45 +454,51 @@ async function recipeIsland(head, tip) {
 }
 
 /** Bring our store to the remote's state, or merge it; never text-merge files. */
+/** Bring our store to the remote's state, or merge it; never text-merge files.
+ *
+ * The network is never inside the lock: the fetch, the push and a refused push's
+ * second fetch happen outside it, and only the store's own mutations (export,
+ * merge, import, commit) are inside. A write that reached the tracker's database
+ * is exported first, so neither a fast-forward nor a merge can lose it. */
 async function syncOnce({ needsRemote, push, quiet } = {}) {
   const remote = await fetchRemote();
   if (!remote.ok) { if (needsRemote) die(4, `the remote is unreachable (${remote.said}); this store is this machine's only`); return { unreachable: true }; }
   if (remote.noRef) return { noRef: true };
   const head = await headOid();
-  if (head === remote.tip) return { upToDate: true };
-  const fast = (await git(['merge-base', '--is-ancestor', head, remote.tip], { cwd: CURRENT.store })).code === 0;
-  let oid;
-  if (fast) {
-    // A write of ours that has not been published is never dropped to take the
-    // remote's state: it is published (which merges the remote in on a refusal)
-    // or the command says the remote is unreachable and keeps it.
-    if (await hasUncommittedState()) {
-      const res = await publishOnce({ quiet });
-      if (!res.ok) return { unreachable: true };
-      return { oid: await headOid(), pushed: true };
-    }
-    // The machine ordinals travel with the store, but which machine this one IS
-    // is local: taking the remote's file wholesale would hand this machine the
-    // other's ordinal, and two machines would then mint the same record ids.
-    const mine = (() => { try { return JSON.parse(readFileSync(join(CURRENT.store, '.tracker-sync', 'machines.json'), 'utf8')); } catch { return null; } })();
-    await gitOk(['reset', '--hard', remote.tip], { cwd: CURRENT.store });
-    if (mine && mine.thisMachine) {
-      const f = join(CURRENT.store, '.tracker-sync', 'machines.json');
-      const theirs = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : { ordinals: {} };
-      if (theirs.thisMachine !== mine.thisMachine)
-        writeFileSync(f, `${JSON.stringify({ ...theirs, thisMachine: mine.thisMachine }, null, 2)}\n`);
-    }
-    await recipeOk('import', {});
-    oid = remote.tip;
-    if (!quiet) say(`tracker-sync: took the remote's state ${remote.tip.slice(0, 12)}`);
-  } else {
-    oid = await mergeAndCommit(remote.tip);
-    if (!quiet) say(`tracker-sync: merged the remote's ${remote.tip.slice(0, 12)} into ${oid.slice(0, 12)} per item`);
+  if (head === remote.tip) {
+    const ahead = Number((await git(['rev-list', '--count', `${remote.tip}..HEAD`], { cwd: CURRENT.store })).stdout.trim());
+    if (ahead > 0 && push !== false) return { oid: head, pushed: await pushOid(head, { quiet }) };
+    return { upToDate: true };
   }
-  return { oid, pushed: await pushOid(oid, { quiet }) };
+  const fast = (await git(['merge-base', '--is-ancestor', head, remote.tip], { cwd: CURRENT.store })).code === 0;
+  const oid = await locked(async () => {
+    // The live database becomes state files first, so a write that only reached
+    // it is not lost to a fast-forward or a merge. A tracker that refuses the
+    // flush (br refuses to export an empty database over a filled one, which is
+    // what a store that has not imported the ref yet looks like) is not holding
+    // an unexported write: it is said, and the state files are taken as they are.
+    const flushed = await recipe('export', {});
+    if (flushed.code !== 0) say(`tracker-sync: the tracker refused to flush its database (${flushed.code}): ${text(flushed).split('\n')[0]}; the state files are taken as they are`);
+    if (fast) {
+      // Our own unpublished writes are a commit of their own; the push that
+      // follows merges the remote in rather than dropping them.
+      if (await hasUncommittedState()) return commitState(`tracker store: ${nowIso()}`, [await headOid()]);
+      // Nothing of ours is unpublished: the remote's state replaces this store's.
+      await gitOk(['reset', '--hard', remote.tip], { cwd: CURRENT.store });
+      keepIdentity();
+      await recipeOk('import', {});
+      return remote.tip;
+    }
+    return mergeAndCommit(remote.tip);
+  });
+  if (!quiet) say(fast ? `tracker-sync: took the remote's state ${remote.tip.slice(0, 12)}` : `tracker-sync: merged the remote's ${remote.tip.slice(0, 12)} into ${oid.slice(0, 12)} per item`);
+  const pushed = push === false ? null : await pushOid(oid, { quiet });
+  return { oid, pushed };
 }
-
 /** Push an immutable oid; a refused push fetches, merges and pushes again. */
+/** Push an immutable oid; a refused push fetches, merges and pushes again.
+ * The push itself is a network call and runs outside the lock; the merge is local
+ * work and takes it. */
 async function pushOid(oid, { quiet, attempts = 3 } = {}) {
   for (let i = 0; i < attempts; i++) {
     const r = await git(['push', 'origin', `${oid}:${CURRENT.ref}`], { cwd: CURRENT.store, timeoutMs: 10000 });
@@ -471,17 +511,17 @@ async function pushOid(oid, { quiet, attempts = 3 } = {}) {
       const remote = await fetchRemote();
       if (!remote.ok) { if (!quiet) say('tracker-sync: the push was refused and the remote is unreachable; the write is kept here'); return { ok: false, unreachable: true }; }
       if (remote.noRef) { if (!quiet) say('tracker-sync: the push was refused and the remote has no store ref yet'); return { ok: false, refused: true }; }
-      oid = await mergeAndCommit(remote.tip);
+      // A caller that already holds the store's lock (connect) merges directly:
+      // taking it twice in one process would wait for itself.
+      oid = LOCK_HELD ? await mergeAndCommit(remote.tip) : await locked(() => mergeAndCommit(remote.tip));
       if (!quiet) say(`tracker-sync: the push was refused; merged the remote's ${remote.tip.slice(0, 12)} and pushing again`);
       continue;
     }
-    if (isPolicy(r)) die(5, `the remote refused ${CURRENT.ref}: ${text(r)}`);
     die(1, `the push failed: ${text(r)}`);
   }
   say('tracker-sync: the push did not land after three attempts; the write is kept here and the next tick tries again');
   return { ok: false, refused: true };
 }
-
 // ---- publish, sync, claim, transition, record -------------------------------
 
 const stateDigest = () => {
@@ -500,23 +540,34 @@ async function hasUncommittedState() {
 
 async function takeLockWait(ms) {
   const deadline = Date.now() + (ms || 0);
+  let said = false;
   for (;;) {
-    const p = lockPath(CURRENT.flags, CURRENT.repoRoot);
     try { return takeLock(CURRENT.flags, CURRENT.repoRoot); }
-    catch (e) { if (Date.now() > deadline) die(1, e.message); await sleep(200); }
+    catch (e) {
+      if (Date.now() > deadline) die(1, `${e.message}; nothing was written, and the command that held it is named above`);
+      if (!said) { said = true; say(`tracker-sync: waiting for the store lock (${e.message.split(';')[0]})`); }
+      await sleep(200);
+    }
   }
 }
 
+/** Local store work only: never a network call inside it. */
+async function locked(fn, waitMs = 120000) {
+  const release = await takeLockWait(waitMs);
+  try { return await fn(); } finally { release(); }
+}
 async function publishOnce({ quiet } = {}) {
-  await recipeOk('export', {});
-  if (!(await hasUncommittedState())) return { ok: true, nothing: true };
-  const oid = await commitState(`tracker store: ${nowIso()}`, [await headOid()]);
+  const oid = await locked(async () => {
+    await recipeOk('export', {});
+    if (!(await hasUncommittedState())) return null;
+    return commitState(`tracker store: ${nowIso()}`, [await headOid()]);
+  });
+  if (oid === null) return { ok: true, nothing: true };
   const res = await pushOid(oid, { quiet });
   writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastPublish: nowIso(), lastPublishOk: !!res.ok });
   if (res.ok && !quiet) say(`tracker-sync: published ${oid.slice(0, 12)} to ${CURRENT.ref}`);
   return res;
 }
-
 async function pushOnce(oid) {
   const r = await git(['push', 'origin', `${oid}:${CURRENT.ref}`], { cwd: CURRENT.store, timeoutMs: 10000 });
   if (r.code === 0) return { ok: true };
@@ -536,70 +587,76 @@ async function pushOnce(oid) {
  * discard everything written, rebuild on top of the remote's new state and ask
  * the recipe again before writing a second time. */
 async function conditional(kind, decl, map, item) {
-  const release = await takeLockWait(5000);
-  try {
-    await syncOnce({ needsRemote: true, quiet: true });
-    let before = await headOid();
-    for (let attempt = 0; attempt < 3; attempt++) {
+  await syncOnce({ needsRemote: true, quiet: true });
+  let before = await headOid();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const step = await locked(async () => {
       const w = await recipe(decl, map);
-      if (w.code === 3) die(3, `${kind} lost: ${text(w).split('\n')[0] || 'the condition no longer holds'}; read again and take other work`);
-      if (w.code !== 0) die(w.code === 127 || w.missing ? 2 : 1, `the recipe's ${decl} command failed (${w.code}): ${text(w) || 'no output'}`);
+      if (w.code === 3) return { lost: text(w) };
+      if (w.code !== 0) return { failed: w };
       await recipeOk('export', {});
-      const oid = await commitState(`tracker store: ${kind} ${item}`, [before]);
-      const r = await pushOnce(oid);
-      if (r.ok) {
-        writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastPublish: nowIso(), lastPublishOk: true });
-        say(`${kind} landed on the remote: ${item}`);
-        return;
-      }
-      // Nothing written may survive a refused push, locally or on the ref.
-      await gitOk(['reset', '--hard', before], { cwd: CURRENT.store });
-      await recipeOk('import', {});
-      if (r.unreachable) {
-        writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastPublishOk: false });
-        die(4, `the remote is unreachable, so the ${kind} is not made: it counts only once it is on the remote. This store is this machine's only`);
-      }
-      const remote = await fetchRemote();
-      if (!remote.ok || remote.noRef) die(4, `the ${kind} was refused and the remote could not be read: ${r.said}`);
-      // The remote's accepted state is the only state a conditional write is
-      // judged against: the pending write is overwritten by it, never merged
-      // with it, because a per-field merge could let the loser win on a newer
-      // field and the protocol says one of two claims lands.
-      await writeState(await stateFrom(remote.tip));
-      await recipeOk('import', {});
-      before = remote.tip;
-      say(`${kind}: the push was refused; the remote's accepted state ${remote.tip.slice(0, 12)} replaces the pending write, and the condition is asked again`);
+      return { oid: await commitState(`tracker store: ${kind} ${item}`, [await headOid()]) };
+    });
+    if (step.lost) die(3, `${kind} lost: ${step.lost.split('\n')[0] || 'the condition no longer holds'}; read again and take other work`);
+    if (step.failed) die(step.failed.code === 127 || step.failed.missing ? 2 : 1, `the recipe's ${decl} command failed (${step.failed.code}): ${text(step.failed) || 'no output'}`);
+    const r = await pushOnce(step.oid);
+    if (r.ok) {
+      writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastPublish: nowIso(), lastPublishOk: true });
+      say(`${kind} landed on the remote: ${item}`);
+      return;
     }
-    die(3, `${kind} lost: three pushes were refused; read again and take other work`);
-  } finally { release(); }
+    // Nothing written may survive a refused push, locally or on the ref.
+    await locked(async () => {
+      await gitOk(['reset', '--hard', before], { cwd: CURRENT.store });
+      keepIdentity();
+      await recipeOk('import', {});
+    });
+    if (r.unreachable) {
+      writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastPublishOk: false });
+      die(4, `the remote is unreachable, so the ${kind} is not made: it counts only once it is on the remote. This store is this machine's only`);
+    }
+    const remote = await fetchRemote();
+    if (!remote.ok || remote.noRef) die(4, `the ${kind} was refused and the remote could not be read: ${r.said}`);
+    // The remote's accepted state is the only state a conditional write is
+    // judged against: the pending write is overwritten by it, never merged with
+    // it, because a per-field merge could let the loser win on a newer field and
+    // the protocol says one of two claims lands.
+    await locked(async () => {
+      await writeState(await stateFrom(remote.tip));
+      keepIdentity();
+      await recipeOk('import', {});
+    });
+    before = remote.tip;
+    say(`${kind}: the push was refused; the remote's accepted state ${remote.tip.slice(0, 12)} replaces the pending write, and the condition is asked again`);
+  }
+  die(3, `${kind} lost: three pushes were refused; read again and take other work`);
 }
-
+let RECORDED_REV = null;
 async function recordRun({ revision, checkout, fromTree }) {
-  const release = await takeLockWait(5000);
-  try {
-    const ck = checkout ? resolve(checkout) : CURRENT.repoRoot;
-    // The state as it stands now is the tracker's export, so the database is
-    // flushed into the state files before they are recorded.
+  const ck = checkout ? resolve(checkout) : CURRENT.repoRoot;
+  // A recording the remote already holds is refused before anything is written.
+  const remote = await fetchRemote();
+  const oid = await locked(async () => {
+    const ck2 = ck;
     await recipeOk('export', {});
     let rev = revision;
     let parts;
     if (fromTree) {
-      rev = rev || (await gitOk(['rev-parse', 'HEAD'], { cwd: ck })).trim();
+      rev = rev || (await gitOk(['rev-parse', 'HEAD'], { cwd: ck2 })).trim();
       if ((await git(['cat-file', '-e', `${rev}^{commit}`], { cwd: CURRENT.store })).code !== 0)
         die(1, `${rev} is not a revision of this repository`);
       parts = await stateFrom(rev);
       if (parts.every(([, c]) => c === null))
         die(1, `${rev} carries none of the state files (${stateFiles().join(', ')}), so it holds no state to record`);
     } else {
-      const head = (await gitOk(['rev-parse', 'HEAD'], { cwd: ck })).trim();
+      const head = (await gitOk(['rev-parse', 'HEAD'], { cwd: ck2 })).trim();
       rev = rev || head;
       if (rev !== head)
-        die(1, `revision ${String(rev).slice(0, 12)} is not ${ck}'s HEAD (${head.slice(0, 12)}): only a revision cut or landed now is recorded, because a later state is not that revision's`);
+        die(1, `revision ${String(rev).slice(0, 12)} is not ${ck2}'s HEAD (${head.slice(0, 12)}): only a revision cut or landed now is recorded, because a later state is not that revision's`);
       parts = stateFiles().map((p) => [p, existsSync(join(CURRENT.store, p)) ? readFileSync(join(CURRENT.store, p), 'utf8') : null]);
     }
     const file = join(CURRENT.store, '.tracker-sync', 'recordings', `${rev}.jsonl`);
     if (existsSync(file)) die(1, `a recording for ${String(rev).slice(0, 12)} already exists: it is never moved`);
-    const remote = await fetchRemote();
     if (remote.ok && !remote.noRef) {
       const there = (await git(['show', `${remote.tip}:.tracker-sync/recordings/${rev}.jsonl`], { cwd: CURRENT.store })).stdout;
       if (there && there !== sideText(parts))
@@ -609,13 +666,13 @@ async function recordRun({ revision, checkout, fromTree }) {
     }
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, sideText(parts));
-    const oid = await commitState(`tracker store: record ${String(rev).slice(0, 12)}`, [await headOid()]);
-    await pushOid(oid, { quiet: true });
-    writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastRecord: nowIso() });
-    say(`tracker-sync: recorded the store at ${String(rev).slice(0, 12)}`);
-  } finally { release(); }
+    RECORDED_REV = String(rev).slice(0, 12);
+    return commitState(`tracker store: record ${String(rev).slice(0, 12)}`, [await headOid()]);
+  });
+  await pushOid(oid, { quiet: true });
+  writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastRecord: nowIso() });
+  say(`tracker-sync: recorded the store at ${RECORDED_REV}`);
 }
-
 // ---- connect, status, export, watch ----------------------------------------
 
 async function installHooks(checkout) {
@@ -629,11 +686,20 @@ async function installHooks(checkout) {
   mkdirSync(dir, { recursive: true });
   for (const name of ['post-commit', 'post-merge']) {
     const f = join(dir, name);
-    const line = `node ${quote(join(HERE, 'tracker-sync.mjs'))} record --revision "$(git rev-parse HEAD)" --checkout ${quote(checkout)} --state ${quote(machineDir(flags, repoRoot))} --recipe ${quote(CURRENT.recipe.path)} >/dev/null 2>&1 || true\n`;
+    // The checkout is asked for, not written in: the hooks directory is usually
+    // shared by every worktree of the repository, and a path baked into it would
+    // record the wrong checkout's revision from every other one.
+    const line = `node ${quote(join(HERE, 'tracker-sync.mjs'))} record --revision "$(git rev-parse HEAD)" --checkout "$(git rev-parse --show-toplevel)" --state ${quote(machineDir(flags, repoRoot))} --recipe ${quote(CURRENT.recipe.path)} >/dev/null 2>&1 || true\n`;
     const mark = '# shady2k tracker-sync record: this line records the revision this hook just cut or landed\n';
     if (existsSync(f)) {
       const t = readFileSync(f, 'utf8');
       if (t.includes('shady2k tracker-sync record')) continue;
+      // A hook that is not a POSIX shell script cannot carry this line: shell
+      // appended to another language is a syntax error that stops every commit.
+      const shebang = (t.split('\n')[0] || '').trim();
+      if (shebang.startsWith('#!') && !/\/(sh|bash|dash|zsh|ksh)\b/.test(shebang)) {
+        die(1, `${f} is not a shell hook (${shebang}): tracker-sync will not append shell to it. Call the record step from that hook yourself: ${line.trim()}`);
+      }
       // A hook that ends in `exit 0` would end before an appended step runs, so
       // the step goes in front of that line, and the project's own hook is kept.
       const tail = t.match(/\n[ \t]*exit[ \t]+0[ \t]*\n?[ \t]*$/);
@@ -710,8 +776,10 @@ async function connectRun(flags) {
     }
     await recipeOk('import', {});
   }
+  const machineName = String(flags.machine || (await run('hostname', [], {})).stdout.trim() || 'machine');
+  writeConfig(flags, repoRoot, { machine: machineName });
   if (CURRENT.recipe.ordinal) {
-    const name = String(flags.machine || (await run('hostname', [], {})).stdout.trim() || 'machine');
+    const name = machineName;
     await recipeOk('ordinal', { machine: quote(name) });
     const oid = await commitState(`tracker store: this machine takes its ordinal`, [await headOid()]);
     const res = await pushOid(oid, { quiet: true });
@@ -828,11 +896,9 @@ async function exportRun(flags, pos) {
     return;
   }
   if (!flags.offline) {
-    const release = await takeLockWait(5000);
-    try {
-      const r = await syncOnce({ needsRemote: true, quiet: true });
-      writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastFetch: nowIso(), lastUnreachable: !!(r && r.unreachable) });
-    } finally { release(); }
+    // syncOnce takes the store lock itself, around its local work only.
+    const r = await syncOnce({ needsRemote: true, quiet: true });
+    writeConfig(CURRENT.flags, CURRENT.repoRoot, { lastFetch: nowIso(), lastUnreachable: !!(r && r.unreachable) });
   } else {
     process.stderr.write("tracker-sync: --offline: this store is this machine's only and the other machines' state is not in it\n");
   }
@@ -853,43 +919,50 @@ async function watchRun(flags) {
   process.on('SIGINT', onStop); process.on('SIGTERM', onStop);
   say(`tracker-sync: watching ${CURRENT.store} (publish after ${debounce}s of quiet or ${maxAge}s at most, sync every ${interval}s)`);
   let firstChange = null; let lastChange = null; let lastDigest = '';
+  // The pid file is touched every tick: its age is how a reader tells a live
+  // watcher from a stale one.
+  const heartbeat = setInterval(() => { try { const p = pidPath(flags, CURRENT.repoRoot); writeFileSync(p, String(process.pid)); } catch {} }, 5000);
+  heartbeat.unref();
   const publishLoop = async () => {
     while (!stop) {
-      const release = await takeLockWait(30000);
+      // The lock covers the store's own work only; the push is a network call
+      // and happens with the lock released, so a claim or a record from another
+      // session is never made to wait on the watcher's network.
+      let digest = null;
       try {
-        const r = await recipe('export', {});
-        if (r.code !== 0) say(`tracker-sync: the export failed (${r.code}): ${text(r).split('\n')[0]}`);
-        else if (await hasUncommittedState()) {
-          const t = Date.now();
-          const digest = stateDigest();
-          if (digest !== lastDigest) { lastDigest = digest; lastChange = t; if (firstChange === null) firstChange = t; }
-          if (firstChange !== null && ((t - lastChange) / 1000 >= debounce || (t - firstChange) / 1000 >= maxAge)) {
-            const oid = await commitState(`tracker store: ${nowIso()}`, [await headOid()]);
-            const res = await pushOid(oid, { quiet: true });
-            writeConfig(flags, CURRENT.repoRoot, { lastPublish: nowIso(), lastPublishOk: !!res.ok });
-            if (res.ok) say(`tracker-sync: published ${oid.slice(0, 12)} (${((Date.now() - firstChange) / 1000).toFixed(1)}s after the first unpublished change)`);
-            if (res.ok) { firstChange = null; lastChange = null; }
-          }
-        } else { firstChange = null; lastChange = null; lastDigest = stateDigest(); }
-      } finally { release(); }
+        digest = await locked(async () => {
+          await recipeOk('export', {});
+          if (!(await hasUncommittedState())) return null;
+          return stateDigest();
+        }, 20000);
+      } catch (e) { say(`tracker-sync: the export failed: ${e.message}`); }
+      if (digest === null) { firstChange = null; lastChange = null; lastDigest = ''; await sleep(1000); continue; }
+      const t = Date.now();
+      if (digest !== lastDigest) { lastDigest = digest; lastChange = t; if (firstChange === null) firstChange = t; }
+      const ready = (t - lastChange) / 1000 >= debounce || (t - firstChange) / 1000 >= maxAge;
+      if (ready) {
+        const oid = await locked(async () => commitState(`tracker store: ${nowIso()}`, [await headOid()]), 20000);
+        const res = await pushOid(oid, { quiet: true });
+        writeConfig(flags, CURRENT.repoRoot, { lastPublish: nowIso(), lastPublishOk: !!res.ok });
+        if (res.ok) {
+          say(`tracker-sync: published ${oid.slice(0, 12)} (${((Date.now() - firstChange) / 1000).toFixed(1)}s after the first unpublished change)`);
+          firstChange = null; lastChange = null; lastDigest = '';
+        }
+      }
       await sleep(1000);
     }
   };
   const syncLoop = async () => {
     while (!stop) {
-      const release = await takeLockWait(30000);
-      try {
-        const r = await syncOnce({ quiet: true });
-        writeConfig(flags, CURRENT.repoRoot, { lastFetch: nowIso(), lastUnreachable: !!(r && r.unreachable) });
-      } finally { release(); }
+      try { await syncOnce({ quiet: true }); } catch (e) { say(`tracker-sync: the sync failed: ${e.message}`); }
       await sleep(interval * 1000);
     }
   };
   await Promise.all([publishLoop(), syncLoop()]);
+  clearInterval(heartbeat);
   try { unlinkSync(pidPath(flags, CURRENT.repoRoot)); } catch {}
   say('tracker-sync: watch stopped');
 }
-
 // ---- the command line -------------------------------------------------------
 
 function usage(code = 1) {
@@ -946,9 +1019,8 @@ async function main() {
       await connectRun(flags);
       break;
     case 'publish': {
-      const release = await takeLockWait(5000);
-      let r;
-      try { r = await publishOnce({ quiet: false }); } finally { release(); }
+      // publishOnce takes the store lock itself, for its local work only.
+      const r = await publishOnce({ quiet: false });
       if (flags.watch) { await watchRun(flags); break; }
       if (r.nothing) say('tracker-sync: nothing to publish');
       else if (r.ok) say(`tracker-sync: published ${String(r.oid).slice(0, 12)}`);
@@ -957,8 +1029,9 @@ async function main() {
     }
     case 'sync': {
       if (flags.interval) { await watchRun(flags); break; }
-      const release = await takeLockWait(5000);
-      try { const r = await syncOnce({ needsRemote: true, quiet: false }); if (r.upToDate) say('tracker-sync: already in step with the remote'); } finally { release(); }
+      // syncOnce takes the store lock itself, around its local work only.
+      const r = await syncOnce({ needsRemote: true, quiet: false });
+      if (r.upToDate) say('tracker-sync: already in step with the remote');
       break;
     }
     case 'claim': {

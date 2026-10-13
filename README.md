@@ -899,9 +899,13 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
   project on another tracker is offered nothing of that tracker's: the mechanism
   is installed with the project's own declarations for its tracker, or setup says
   plainly that the project must supply them. macOS supervision is described, not
-  shipped. The layout needs no setup rerun: the version of the mechanisms a
-  project runs is reported by the copy it installed, and no file this setup
-  already installs changed. A tracker kept on the branches is unaffected.
+  shipped. Two simulated machines prove it, in the set's own checks: one local
+  remote, two clones, two stores, and every rule broken once on a copy to show a
+  case catch it. The layout needs no setup rerun, and a project that chose it is
+  told when its copy is behind: the mechanism reports the version it was
+  installed from, and setup compares the copy with the shipped file on every run.
+  A tracker kept on the branches is unaffected, and no file this setup already
+  installs changed.
 - **0.106.0** gives a product's wiki its repositories' descriptions and puts
   the product's own kinds registry in the product. Two new skills,
   `describe-repository` and `write-intended-model`, moved into the set: one
