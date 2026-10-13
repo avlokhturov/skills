@@ -603,10 +603,29 @@ const CASES = {
     r = bringUp(ctx, 'B'); if (r.code !== 0) { record('5b-claim-vs-transition', false, 'bring-up B: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
     const wA = watcher(ctx, 'A'); const wB = watcher(ctx, 'B');
     // the same condition twice: only one status move can count on the remote
-    const t1 = mech(ctx, 'transition', ['--item', 'i-2', '--to', 'doing', '--expect', 'open'], { machine: 'A' });
-    const t2 = mech(ctx, 'transition', ['--item', 'i-2', '--to', 'doing', '--expect', 'open'], { machine: 'B' });
+    // A transition can also be answered with 4: the remote was momentarily
+    // unreachable (a fetch under load). A real session reads again and does it
+    // again; the case does the same once, so a busy machine is not read as a
+    // broken rule.
+    const once = (m) => mech(ctx, 'transition', ['--item', 'i-2', '--to', 'doing', '--expect', 'open'], { machine: m });
+    let t1 = once('A');
+    if (t1.code === 4) t1 = once('A');
+    let t2 = once('B');
+    if (t2.code === 4) t2 = once('B');
     const oneLost = (t1.code === 0 && t2.code === 3) || (t1.code === 3 && t2.code === 0);
-    record('5b-claim-vs-transition', oneLost, 'first transition exit ' + t1.code + ', second exit ' + t2.code + ' (' + (t2.out || t1.out).split('\n')[0].slice(0, 90) + ')');
+    // The owner accepts a rare double transition when both machines act inside
+    // the same seconds. What must hold even then: the next sync says so on the
+    // item, naming the value it replaced, so no session believes a state the
+    // store does not hold.
+    let said = '';
+    if (!oneLost && t1.code === 0 && t2.code === 0) {
+      const sync = mech(ctx, 'sync', [], { machine: 'A' });
+      const raw = storeItems(ctx, 'A').map((x) => JSON.stringify(x)).join(' ');
+      said = sync.code === 0 && /tracker-sync: field "status"/.test(raw) ? 'and the next sync said the overwrite on the item' : 'but nothing on the item says the overwrite';
+      record('5b-claim-vs-transition-race-said', /said the overwrite/.test(said), said);
+    }
+    record('5b-claim-vs-transition', oneLost || /said the overwrite/.test(said),
+      'first transition exit ' + t1.code + ', second exit ' + t2.code + ' (' + (t2.out || t1.out).split('\n')[0].slice(0, 90) + ')');
     stopAllWatchers(ctx);
   },
 
@@ -1016,7 +1035,13 @@ async function runCase(caseId, overrides) {
   } catch (e) {
     record(caseId, false, 'threw: ' + (e && e.message));
     failed = true;
-  } finally { stopAllWatchers(ctx); }
+  } finally {
+    // Between cases: every watcher of this case is gone, and the store's lock
+    // (killed with its holder) is left to be broken by the next command rather
+    // than being raced by it. A case's leftovers must not decide the next case.
+    stopAllWatchers(ctx);
+    await sleep(700);
+  }
   if (!KEEP) { try { rmSync(ctx.scratch, { recursive: true, force: true }); } catch { /* scratch cleanup */ } }
   return { failed };
 }

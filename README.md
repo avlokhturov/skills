@@ -898,14 +898,20 @@ guard. A local hook or prose instruction is not a tamper-proof boundary.
   overwrote), and proofs that run the whole thing with two simulated machines. A
   project on another tracker is offered nothing of that tracker's: the mechanism
   is installed with the project's own declarations for its tracker, or setup says
-  plainly that the project must supply them. macOS supervision is described, not
+  plainly that the project must supply them. Two machines claiming the same item
+  inside the same seconds can both believe they hold it until the next sync says
+  otherwise: the store records what the merge replaced, and the second session
+  reads it at its next read. macOS supervision is described, not
   shipped. Two simulated machines prove it, in the set's own checks: one local
   remote, two clones, two stores, and every rule broken once on a copy to show a
   case catch it. The layout needs no setup rerun, and a project that chose it is
   told when its copy is behind: the mechanism reports the version it was
   installed from, and setup compares the copy with the shipped file on every run.
-  A tracker kept on the branches is unaffected, and no file this setup already
-  installs changed.
+  The one thing it does not promise is a claim that waits for the other machine:
+  two machines claiming one item inside the same seconds can both believe they
+  hold it, until the next sync records what the merge replaced on the item and the
+  second session reads it there. A tracker kept on the branches is unaffected, and
+  no file this setup already installs changed.
 - **0.106.0** gives a product's wiki its repositories' descriptions and puts
   the product's own kinds registry in the product. Two new skills,
   `describe-repository` and `write-intended-model`, moved into the set: one

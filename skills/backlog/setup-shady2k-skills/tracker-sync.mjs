@@ -352,17 +352,19 @@ async function commitState(message, parents) {
 
 /** Fetch the ref into a private ref: never into the one the worktree holds. */
 async function fetchRemote() {
-  // One retry: a fetch that fails while two machines and their watchers are
-  // working is far more often a moment's contention than an unreachable remote,
-  // and calling it unreachable is what makes a session refuse work it could do.
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // A fetch that fails while two machines and their watchers are working is far
+  // more often a moment's contention - or a slow disk under load - than an
+  // unreachable remote, and calling it unreachable is what makes a session refuse
+  // work it could do. Three tries over a few seconds, then it is said.
+  for (let attempt = 0; attempt < 3; attempt++) {
     const r = await git(['fetch', 'origin', `+${CURRENT.ref}:${FETCH_REF}`], { cwd: CURRENT.store, timeoutMs: 20000 });
     if (r.code === 0) return { ok: true, tip: (await gitOk(['rev-parse', FETCH_REF], { cwd: CURRENT.store })).trim() };
     const t = text(r);
     if (/couldn't find remote ref|Could not find remote ref|no such ref/i.test(t)) return { ok: true, noRef: true };
-    if (attempt === 0 && !isPolicy(r)) { await sleep(1000); continue; }
+    if (attempt < 2 && !isPolicy(r)) { await sleep(1000 * (attempt + 1)); continue; }
     return { ok: false, unreachable: true, said: t };
   }
+  return { ok: false, unreachable: true, said: 'the fetch did not answer' };
 }
 const isUnreachable = (r) => r.timedOut || /could not resolve host|unable to access|Connection (refused|reset|timed out)|Network is unreachable|Could not read from remote|Operation timed out|no route to host|terminal prompts disabled|Permission denied \(publickey\)/i.test(text(r));
 const isRefused = (r) => /rejected|non-fast-forward|fetch first|stale info/i.test(text(r));
@@ -645,7 +647,12 @@ let RECORDED_REV = null;
 async function recordRun({ revision, checkout, fromTree }) {
   const ck = checkout ? resolve(checkout) : CURRENT.repoRoot;
   // A recording the remote already holds is refused before anything is written.
+  // Where the remote cannot be read, the recording is refused too: "written once"
+  // cannot be checked without it, and a duplicate recording of one revision is
+  // exactly what the rule exists to prevent.
   const remote = await fetchRemote();
+  if (!remote.ok)
+    die(4, `the remote is unreachable (${remote.said}), so whether this revision is already recorded cannot be checked: nothing is recorded here`);
   const oid = await locked(async () => {
     const ck2 = ck;
     await recipeOk('export', {});
