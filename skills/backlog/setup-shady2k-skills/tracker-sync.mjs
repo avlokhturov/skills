@@ -352,11 +352,17 @@ async function commitState(message, parents) {
 
 /** Fetch the ref into a private ref: never into the one the worktree holds. */
 async function fetchRemote() {
-  const r = await git(['fetch', 'origin', `+${CURRENT.ref}:${FETCH_REF}`], { cwd: CURRENT.store, timeoutMs: 20000 });
-  if (r.code === 0) return { ok: true, tip: (await gitOk(['rev-parse', FETCH_REF], { cwd: CURRENT.store })).trim() };
-  const t = text(r);
-  if (/couldn't find remote ref|Could not find remote ref|no such ref/i.test(t)) return { ok: true, noRef: true };
-  return { ok: false, unreachable: true, said: t };
+  // One retry: a fetch that fails while two machines and their watchers are
+  // working is far more often a moment's contention than an unreachable remote,
+  // and calling it unreachable is what makes a session refuse work it could do.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await git(['fetch', 'origin', `+${CURRENT.ref}:${FETCH_REF}`], { cwd: CURRENT.store, timeoutMs: 20000 });
+    if (r.code === 0) return { ok: true, tip: (await gitOk(['rev-parse', FETCH_REF], { cwd: CURRENT.store })).trim() };
+    const t = text(r);
+    if (/couldn't find remote ref|Could not find remote ref|no such ref/i.test(t)) return { ok: true, noRef: true };
+    if (attempt === 0 && !isPolicy(r)) { await sleep(1000); continue; }
+    return { ok: false, unreachable: true, said: t };
+  }
 }
 const isUnreachable = (r) => r.timedOut || /could not resolve host|unable to access|Connection (refused|reset|timed out)|Network is unreachable|Could not read from remote|Operation timed out|no route to host|terminal prompts disabled|Permission denied \(publickey\)/i.test(text(r));
 const isRefused = (r) => /rejected|non-fast-forward|fetch first|stale info/i.test(text(r));
@@ -482,7 +488,11 @@ async function syncOnce({ needsRemote, push, quiet } = {}) {
     if (fast) {
       // Our own unpublished writes are a commit of their own; the push that
       // follows merges the remote in rather than dropping them.
-      if (await hasUncommittedState()) return commitState(`tracker store: ${nowIso()}`, [await headOid()]);
+      // Our own unpublished writes are merged with the remote's state per item
+      // and committed, never merely committed and left as they are: a state that
+      // is stale against the remote is exactly what makes a claim land twice,
+      // because the recipe is asked about the state in front of it.
+      if (await hasUncommittedState()) return mergeAndCommit(remote.tip);
       // Nothing of ours is unpublished: the remote's state replaces this store's.
       await gitOk(['reset', '--hard', remote.tip], { cwd: CURRENT.store });
       keepIdentity();
