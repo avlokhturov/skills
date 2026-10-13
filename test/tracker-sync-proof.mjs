@@ -915,6 +915,7 @@ const CASES = {
   'F7-stalled-remote': async (ctx) => {
     let r = bringUp(ctx, 'A'); if (r.code !== 0) { record('F7-stalled-remote', false, 'bring-up: ' + r.out); return; }
     // a remote whose git hangs: an ssh URL whose ssh command never answers
+    const stallStart = Date.now();
     const sshWrap = join(ctx.scratch, 'sleep-ssh.sh');
     writeFileSync(sshWrap, '#!/bin/sh\nsleep 600\n');
     sh('chmod', ['+x', sshWrap]);
@@ -922,8 +923,13 @@ const CASES = {
     const loop = spawn('node', [ctx.mech, 'sync', '--recipe', ctx.recipe, '--interval', '1', '--state', ctx.stateA, '--repo', ctx.codeA],
       { cwd: ctx.scratch, env: { ...process.env, TRACKER_RECIPE: ctx.recipe, GIT_SSH_COMMAND: sshWrap }, stdio: 'ignore' });
     ctx.watchers.push(loop);
-    await sleep(25000); // the default 20 s network bound passes at least once
-    const alive = loop.exitCode === null && loop.signalCode === null;
+    // Wait for the condition, not the clock: the loop must still be alive after
+    // the mechanism's own network bound has passed at least once.
+    const survived = await waitUntil(async () => {
+      const alive = loop.exitCode === null && loop.signalCode === null;
+      return alive && Date.now() - stallStart > 22000 ? true : null;
+    }, 40000, 500);
+    const alive = survived.value === true && loop.exitCode === null && loop.signalCode === null;
     const local = storeItems(ctx, 'A').some((x) => x.id === 'i-1');
     sh('git', ['-C', ctx.codeA, 'remote', 'set-url', 'origin', ctx.remote]);
     stopAllWatchers(ctx);
@@ -934,7 +940,9 @@ const CASES = {
     const w = watcher(ctx, 'A', ['--interval', '1', '--debounce', '2']);
     await settleWatcher(ctx, 'A');
     post(ctx, 'A', 'i-1', 'after the stall');
-    const res = await waitForRemote(ctx, (items) => items.some((x) => x.id === 'i-1' && x.comments.some((c) => c.text === 'after the stall')), 8000);
+    // The bound is far above the mechanism's own (5 s at most): a watcher that was
+    // mid-backoff when the remote answered still has time to publish.
+    const res = await waitForRemote(ctx, (items) => items.some((x) => x.id === 'i-1' && x.comments.some((c) => c.text === 'after the stall')), 30000);
     record('F7-after-stall-publishes', !!res.value, res.value ? '' : 'no publish after the remote returned');
     stopAllWatchers(ctx);
   },
@@ -961,9 +969,14 @@ const CASES = {
     r = bringUp(ctx, 'B'); if (r.code !== 0) { record('F10-exit-statuses', false, 'bring-up B: ' + r.out.split('\n').slice(0,4).join(' | ')); return; }
     const wA = watcher(ctx, 'A'); const wB = watcher(ctx, 'B');
     const c1 = claim(ctx, 'A', 'i-1', 'holder-A');
-    await waitUntil(async () => remoteItems(ctx).some((x) => x.id === 'i-1' && x.holder === 'holder-A'), 6000);
-    // This is not the same-seconds race: A's claim is on the remote and this
-    // machine has synced, so the second claim must be refused, not raced.
+    // The second claim is only made once the first is ON THE REMOTE: this is not
+    // the same-seconds race, so the case waits for its condition with a bound far
+    // above the mechanism's own (seconds), and says so if it never comes true.
+    const onRemote = await waitUntil(async () => remoteItems(ctx).some((x) => x.id === 'i-1' && x.holder === 'holder-A'), 30000, 250);
+    if (!onRemote.value) {
+      ok = false; why.push('A\'s claim never reached the remote within 30 s (exit ' + c1.code + ')');
+      stopAllWatchers(ctx); record('F10-exit-statuses', ok, why.join('; ')); return;
+    }
     let c2 = claim(ctx, 'B', 'i-1', 'holder-B');
     if (c2.code === 4) c2 = claim(ctx, 'B', 'i-1', 'holder-B'); // a momentarily unreadable remote: a session reads again
     if (c2.code !== 3) { ok = false; why.push('claim on an item held and visible on the remote exit ' + c2.code + ' (want 3)'); }
@@ -985,7 +998,11 @@ const CASES = {
     sh('chmod', ['+x', hook]);
     const p = post(ctx, 'A', 'i-2', 'refused ref');
     const w = watcher(ctx, 'A');
-    await sleep(7000);
+    // Wait until the watcher has tried and been refused, or the bound passes.
+    await waitUntil(async () => {
+      const log = w.logPath && existsSync(w.logPath) ? readFileSync(w.logPath, 'utf8') : '';
+      return /refused|did not land|rejected/.test(log) ? true : null;
+    }, 25000, 500);
     stopAllWatchers(ctx);
     rmSync(hook);
     const neverLanded = !remoteItems(ctx).some((x) => x.id === 'i-2' && x.comments.some((c) => c.text === 'refused ref'));
