@@ -371,7 +371,10 @@ const isRefused = (r) => /rejected|non-fast-forward|fetch first|stale info/i.tes
 // A refusal the remote's own policy makes (a protected ref, a denied user) is
 // its own class and is never retried; a push a pre-receive hook merely declined
 // this once is an ordinary refusal, and the fetch-merge-push round retries it.
-const isPolicy = (r) => /denied|cannot lock ref|protected ref|not allowed|refusing to allow/i.test(text(r));
+// `cannot lock ref` is not a policy: it is a ref momentarily held by another
+// process, and the fetch-merge-push round retries it. A policy refusal is one a
+// person must change something for.
+const isPolicy = (r) => /denied|protected ref|not allowed|refusing to allow|forbidden/i.test(text(r));
 
 /** Which machine this store belongs to, and keeping that true.
  *
@@ -776,6 +779,15 @@ async function connectRun(flags) {
   const release = await takeLockWait(5000);
   try {
   const { fresh } = await ensureStore({ create: true });
+  // A store that came from the ref carries the other machines' state files. The
+  // tracker's database here is this machine's own and must be rebuilt from them
+  // BEFORE anything writes, or the first write is made against an empty database
+  // and the export that follows is refused (br refuses to flush an empty database
+  // over a filled one) or the two sides' prefixes disagree.
+  if (!fresh && CURRENT.recipe.import) {
+    await recipeOk('import', {});
+    say('tracker-sync: this machine\'s database was rebuilt from the state the ref carries');
+  }
   // A store the mechanism has just created carries no tracker state. The
   // tracker's own "make me a store" command is the recipe's, and it runs here
   // and only here: never in a checkout, so a checkout can never conjure up a

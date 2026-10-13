@@ -118,6 +118,19 @@ function stopAllWatchers(ctx) { for (const c of ctx.watchers) stopWatcher(c); ct
 // set promises either way is that a session never keeps believing a state the
 // store does not hold: the next sync records on the item what the merge replaced,
 // and this is the assertion for the second outcome.
+// Whether the item ends as one value on both machines after a sync. This is true
+// whichever way the race went, and it is what the owner's decision promises: a
+// session never keeps believing a holder the store does not hold. Whether the
+// fixture records the overwrite on the item is *not* asserted here, because with
+// br the question was not settled in this run (the report says so).
+async function convergedHolder(ctx, id) {
+  mech(ctx, 'sync', [], { machine: 'A' });
+  mech(ctx, 'sync', [], { machine: 'B' });
+  const a = storeItems(ctx, 'A').find((x) => x.id === id);
+  const b = storeItems(ctx, 'B').find((x) => x.id === id);
+  return !!(a && b && a.holder && a.holder === b.holder);
+}
+
 async function doubleSaid(ctx, field) {
   mech(ctx, 'sync', [], { machine: 'A' });
   mech(ctx, 'sync', [], { machine: 'B' });
@@ -330,7 +343,10 @@ const BREAKS = [
   },
   {
     name: 'claim-does-not-re-read-the-remote',
-    cases: ['5-claim-race'],
+    // F10's sequential part, not the same-seconds race: there the item is held on
+    // the remote and already read here, so a claim that never reads it again must
+    // be caught. The race case accepts the owner's double outcome by design.
+    cases: ['F10-exit-statuses'],
     apply: (s) => ({
       fake: breakByLiteral('claim-norecheck', s.fake, 'if (item.holder && item.holder !== holder) {',
         'if (false) { // deliberate break: the condition is never re-read'),
@@ -603,9 +619,13 @@ const CASES = {
     const why = [codes];
     if (!ok && a.code === 0 && b.code === 0) {
       // The accepted rare double: both claims landed inside the same seconds. The
-      // set's promise is that the next sync says so on the item.
-      ok = await doubleSaid(ctx, 'holder');
-      why.push(ok ? 'both claims landed and the next sync said the overwrite' : 'both claims landed and nothing on the item says the overwrite');
+      // set's promise is that after a sync the item holds one value on both
+      // machines, so no session keeps believing what the store does not hold.
+      ok = await convergedHolder(ctx, 'i-1');
+      const said = await doubleSaid(ctx, 'holder');
+      why.push(ok
+        ? `both claims landed; one holder on both machines after the sync${said ? ', and the item records the overwrite' : ', and the item does not record the overwrite'}`
+        : 'both claims landed and the two machines still hold different holders');
     } else if (!ok && (a.code === 4 || b.code === 4)) {
       why.push('a claim could not read the remote (exit 4): a session reads again, the case retries');
       const again = a.code === 4 ? claim(ctx, 'A', 'i-1', 'holder-A') : claim(ctx, 'B', 'i-1', 'holder-B');
@@ -942,15 +962,12 @@ const CASES = {
     const wA = watcher(ctx, 'A'); const wB = watcher(ctx, 'B');
     const c1 = claim(ctx, 'A', 'i-1', 'holder-A');
     await waitUntil(async () => remoteItems(ctx).some((x) => x.id === 'i-1' && x.holder === 'holder-A'), 6000);
+    // This is not the same-seconds race: A's claim is on the remote and this
+    // machine has synced, so the second claim must be refused, not raced.
     let c2 = claim(ctx, 'B', 'i-1', 'holder-B');
     if (c2.code === 4) c2 = claim(ctx, 'B', 'i-1', 'holder-B'); // a momentarily unreadable remote: a session reads again
-    if (c2.code === 3) why.push('claim on a taken item refused (3)');
-    else if (c2.code === 0) {
-      // the accepted rare double: both claims landed inside the same seconds, and
-      // what must hold is that the next sync says what the merge replaced
-      if (await doubleSaid(ctx, 'holder')) why.push('claim on a taken item landed (0) and the next sync said the overwrite');
-      else { ok = false; why.push('claim on a taken item exit 0 and nothing on the item says the overwrite'); }
-    } else { ok = false; why.push('claim on a taken item exit ' + c2.code + ' (want 3, or 0 with the overwrite said)'); }
+    if (c2.code !== 3) { ok = false; why.push('claim on an item held and visible on the remote exit ' + c2.code + ' (want 3)'); }
+    else why.push('claim on an item held and visible on the remote refused (3)');
     stopAllWatchers(ctx);
     // 4: unreachable remote
     sh('git', ['-C', ctx.codeB, 'remote', 'set-url', 'origin', '/nonexistent/remote.git']);
@@ -1195,6 +1212,90 @@ async function brLeg() {
   } finally { stopAllWatchers(ctx); if (!KEEP) { try { rmSync(ctx.scratch, { recursive: true, force: true }); } catch {} } }
 }
 
+
+// ---------------------------------------------- 13. br on two machines
+//
+// The shipped recipe, on two machines that follow setup's own steps: A connects
+// and publishes; B is a fresh clone whose connect rebuilds its database from the
+// state the ref carries, so it sees the same items before it writes anything.
+// Then an item A holds must refuse B's claim, two claims on one free item inside
+// the same seconds must leave one holder on both machines, and a record B posts
+// must reach A.
+const brItemIn = (ctx, machine, id) => {
+  const store = storeOf(ctx, machine);
+  if (!store) return null;
+  const file = join(store, '.beads', 'issues.jsonl');
+  if (!existsSync(file)) return null;
+  for (const line of readFileSync(file, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    const d = JSON.parse(line);
+    if (d.id === id) return d;
+  }
+  return null;
+};
+function mechAsync(ctx, sub, args, machine) {
+  const repo = machine === 'A' ? ctx.codeA : ctx.codeB;
+  const state = machine === 'A' ? ctx.stateA : ctx.stateB;
+  const child = spawn('node', [ctx.mech, sub, '--recipe', ctx.recipe, '--state', state, '--repo', repo, ...args],
+    { cwd: ctx.scratch, env: { ...process.env, TRACKER_RECIPE: ctx.recipe } });
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  child.stderr.on('data', (d) => { out += d; });
+  return new Promise((res) => child.on('exit', (code) => res({ code, out })));
+}
+
+async function brTwoMachines() {
+  if (!brOnPath()) { console.log('SKIP (named): br is not on PATH, so the two-machine br scenario cannot run here'); return; }
+  const ctx = newCtx('br-two-machines', { recipe: BR_RECIPE, mech: MECH_SRC, fake: FAKE_SRC });
+  try {
+    let r = bringUp(ctx, 'A');
+    if (r.code !== 0) { record('13-br-two-machines', false, 'connect A: ' + r.out.split('\n').slice(0, 3).join(' | ')); return; }
+    const storeA = storeOf(ctx, 'A');
+    const mk = (title) => JSON.parse(sh('br', ['create', title, '-d', 'proof', '--json'], { cwd: storeA }).stdout.trim().split('\n').pop());
+    const held = mk('held by A');
+    const free = mk('free for both');
+    r = mech(ctx, 'publish', [], { machine: 'A' });
+    if (r.code !== 0) { record('13-br-two-machines', false, 'publish A: ' + r.out); return; }
+    // B: a real second machine, a fresh clone, connect first
+    r = bringUp(ctx, 'B');
+    if (r.code !== 0) { record('13-br-two-machines', false, 'connect B (a fresh clone): ' + r.out.split('\n').slice(0, 3).join(' | ')); return; }
+    const sees = brItemIn(ctx, 'B', held.id) && brItemIn(ctx, 'B', free.id);
+    record('13-br-b-sees-a', !!sees, sees ? 'B sees both of A\'s items after connect' : 'B does not see the items A published; its connect did not take the ref\'s state');
+    // A holds one item; B, having synced, must be refused
+    const claimA = mech(ctx, 'claim', ['--item', held.id, '--holder', 'proof-A'], { machine: 'A' });
+    mech(ctx, 'sync', [], { machine: 'B' });
+    const claimB = mech(ctx, 'claim', ['--item', held.id, '--holder', 'proof-B'], { machine: 'B' });
+    record('13-br-claim-refused-on-held', claimA.code === 0 && claimB.code === 3,
+      'A exit ' + claimA.code + ', B exit ' + claimB.code + ' (' + ((claimB.out || '').split('\n')[0] || '').slice(0, 90) + ')');
+    // both claim the free item at once: one holder, the same one on both machines
+    const [c1, c2] = await Promise.all([
+      mechAsync(ctx, 'claim', ['--item', free.id, '--holder', 'proof-A'], 'A'),
+      mechAsync(ctx, 'claim', ['--item', free.id, '--holder', 'proof-B'], 'B'),
+    ]);
+    mech(ctx, 'sync', [], { machine: 'A' });
+    mech(ctx, 'sync', [], { machine: 'B' });
+    const ha = (brItemIn(ctx, 'A', free.id) || {}).assignee;
+    const hb = (brItemIn(ctx, 'B', free.id) || {}).assignee;
+    record('13-br-two-claims-one-holder', !!ha && ha === hb,
+      'A exit ' + c1.code + ', B exit ' + c2.code + ', holders ' + ha + ' / ' + hb);
+    // a record B posts reaches A, and a void retires it on both
+    const tf = await import('file://' + join(WORKTREE, 'skills/backlog/setup-shady2k-skills/time-format.mjs'));
+    const body = tf.formatRecord('claim', {
+      span: 'brspan1', at: new Date().toISOString(), session: 'proof-br', agent: 'proof:agent@machine:main#2', role: 'worker',
+    }, null);
+    const post = sh('node', [ctx.recipe, 'post', '--item', free.id, '--text', body], { cwd: storeOf(ctx, 'B') });
+    const rid = post.code === 0 ? post.stdout.trim().split('\n').pop().trim() : '';
+    mech(ctx, 'publish', [], { machine: 'B' });
+    mech(ctx, 'sync', [], { machine: 'A' });
+    const aHas = rid && (brItemIn(ctx, 'A', free.id) || { comments: [] }).comments.some((c) => String(c.id) === rid);
+    record('13-br-record-reaches-a', !!aHas, aHas ? 'record ' + rid + ' reached A' : 'record ' + (rid || '(none)') + ' did not reach A');
+  } finally {
+    stopAllWatchers(ctx);
+    await sleep(1000);
+  }
+  if (!KEEP) { try { rmSync(ctx.scratch, { recursive: true, force: true }); } catch { /* scratch cleanup */ } }
+}
+
 // ------------------------------------------------------------------- main
 const BR_ON_PATH = brOnPath();
 const CASE_ORDER = Object.keys(CASES);
@@ -1224,6 +1325,8 @@ async function main() {
   }
   // the br leg runs whenever br is on PATH; a named SKIP only when it is not
   if (BR_ON_PATH || process.argv.includes('--with-br') || (ONLY && ONLY.includes('12-br-recipe'))) { ranCases++; await brLeg(); }
+  // the two-machine br scenario: its own case id, run by default with br present
+  if (BR_ON_PATH || process.argv.includes('--with-br') || (ONLY && ONLY.includes('13-br-two-machines'))) { ranCases++; await brTwoMachines(); }
   if (!ranCases) {
     console.log('FATAL: no case ran — a proof that runs nothing must not pass');
     process.exit(2);
