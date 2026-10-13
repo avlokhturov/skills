@@ -1059,9 +1059,20 @@ const CASES = {
     const s0 = mech(ctx, 'status', [], { machine: 'A' });
     if (s0.code !== 0) { ok = false; why.push('status exit ' + s0.code + ' (want 0)'); }
     const head = sh('git', ['-C', ctx.codeA, 'rev-parse', 'HEAD']).stdout.trim();
-    mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
-    const again = mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
-    if (again.code !== 1) { ok = false; why.push('re-record exit ' + again.code + ' (want 1)'); }
+    const first = mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
+    if (first.code !== 0) { ok = false; why.push('record exit ' + first.code + ' (want 0)'); }
+    // 1: a refusal the caller can fix. A revision that is already recorded is no
+    // longer one of those — it is the state the step exists to reach — so the
+    // example is a revision that is not the checkout's HEAD any more.
+    writeFileSync(join(ctx.codeA, 'f10.txt'), 'one\n');
+    sh('git', ['-C', ctx.codeA, 'add', '.']);
+    sh('git', ['-C', ctx.codeA, '-c', 'user.name=proof', '-c', 'user.email=proof@local', '-c', 'core.hooksPath=/nonexistent-hooks', 'commit', '-qm', 'f10 more']);
+    const stale = mech(ctx, 'record', ['--revision', head, '--checkout', ctx.codeA], { machine: 'A' });
+    if (stale.code !== 1) { ok = false; why.push('record of a revision that is not HEAD exit ' + stale.code + ' (want 1)'); }
+    const after = sh('git', ['-C', ctx.codeA, 'rev-parse', 'HEAD']).stdout.trim();
+    const again = mech(ctx, 'record', ['--revision', after, '--checkout', ctx.codeA], { machine: 'A' });
+    const secondly = mech(ctx, 'record', ['--revision', after, '--checkout', ctx.codeA], { machine: 'A' });
+    if (again.code !== 0 || secondly.code !== 0) { ok = false; why.push('an already-recorded revision exits ' + again.code + '/' + secondly.code + ' (want 0, the state the step exists to reach)'); }
     // 2: the runtime is missing — a recipe whose own command does not exist
     const brokenDir = join(ctx.scratch, 'recipe-no-runtime');
     mkdirSync(brokenDir, { recursive: true });
