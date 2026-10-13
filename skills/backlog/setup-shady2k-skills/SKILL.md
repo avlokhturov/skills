@@ -165,13 +165,13 @@ mechanism is what meets them, and this skill installs it:
   by `gh run list` where the project uses it. Where the host refuses a ref
   outside `refs/heads/` and `refs/tags/`, say plainly that this hosting is
   unsupported for the layout and what must change.
-- **Say the residual the owner accepted.** Two machines claiming one item inside
-  the same seconds can both come away believing they hold it: the remote's own
-  ordering decides which change lands first, and the next sync records on the item
-  what it replaced, so the second session reads the truth at its next read. This is
-  the accepted cost of not making a claim wait for the other machine; every other
-  part of a claim, a transition and a record is unchanged, and the proofs run the
-  two-machine case with that allowance.
+- **Say the claim's residual.** Two machines claiming one item inside the same
+  seconds can both come away believing they hold it: the remote's own ordering
+  decides which change lands first, and after the next sync every machine shows one
+  holder, so the second session learns at its next read that the item is not its.
+  That is the cost the set accepts for not making a claim wait for the other
+  machine; every other part of a claim, a transition and a record is unchanged, and
+  the proofs run the two-machine case with that allowance.
 - **Move an existing project without losing a record.** The move is a copy of
   the tracker's own store files into the machine's store, never a re-creation
   through the tracker's create command, because a record is retired by a void
