@@ -93,6 +93,10 @@ all. For a slowdown, measure first: a baseline, then bisect.
 
 ## 5. Fix, behind a check
 
+A fix that passes by weakening the check is not a fix, by the protocol's
+[**A check changes only with the requirement it encodes**](references/checks.md):
+what that check encodes here is the original symptom.
+
 For diagnosis only, return the cause or the remaining hypotheses, the evidence
 and the proposed fix. An approved fix is tracked work before it is implemented,
 by the protocol's [**Tracked work**](references/keeping.md). The original

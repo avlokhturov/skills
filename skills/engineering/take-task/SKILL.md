@@ -43,14 +43,21 @@ owner**](references/speaking.md).
   change plus its check, and the life cycle's [**The shortest path is the
   default**](references/lifecycle.md): no spec, no stages, no design; the
   task's line and the commit are the whole record, and the preflight asks
-  only what a run of that size still owes.
+  only what a run of that size still owes. Whether the change is one of those is
+  decided by the life cycle's [**Depth is read off the change, not off the
+  author's word**](references/lifecycle.md); where the reading is arguable,
+  the deeper route is taken and the preflight says which and why.
 
 Size the work by the protocol's
 [life cycle](references/lifecycle.md), its [**Tailoring is the
 rule**](references/lifecycle.md): which stages it passes — design included —
 is chosen by size, uncertainty and risk and by what the project is, and each
 skipped or narrowed stage is said with its reason, not silently left out. A
-small irreversible change can need more design than a large routine one.
+small irreversible change can need more design than a large routine one. The
+route's depth is the life cycle's [**Depth is read off the change, not off the
+author's word**](references/lifecycle.md), and the route the run takes is on
+the preflight's list, so the owner accepts it with the rest or changes it by
+name.
 
 - **Small, understood change:** a short delta through `to-spec`, and one stage
   with only the needed tasks through `to-stages`. Reuse approved criteria.
@@ -357,6 +364,9 @@ through the harness, and continues without the owner.
 **TDD:** watch a behaviour check fail for the intended reason, write the least
 code that passes it, refactor while it stays green; one slice at a time.
 **Test-after:** implement, then add or update the checks before returning.
+Reaching green is the code's work and never the check's, by the protocol's
+[**A check changes only with the requirement it
+encodes**](references/checks.md).
 
 The spec's seams define acceptance, not a ban on local tests. Code and tests
 are shaped by the protocol's [building rules](references/building.md): **Find
@@ -501,7 +511,10 @@ the older drift it lists through `to-backlog` as one debt item, unless one is
 already open. Then bring the
 feature's **one pull request** to review through the project's authorized
 workflow, starting its CI once in the way this repository's CI allows (the
-protocol's **Know what a push starts, and push once**). Move the coordinator's
+protocol's **Know what a push starts, and push once**). A stopped or resumed
+run reads the branch, the pull request and the CI run from the forge before it
+pushes or opens anything, by the protocol's **An effect outside this checkout
+is asked of the system that took it**. Move the coordinator's
 own checkout off that branch as soon as the run is submitted, by the protocol's
 **A submitted branch is frozen**. Write its report as the protocol's
 **Autonomy** describes: what users can now do, how to check it yourself as the

@@ -18,7 +18,11 @@ being done, and when the next word will come, by **Waiting is quiet**.
 
 ## 1. Restore first
 
-Take the fastest reversible move that stops what is failing. The evidence
+Take the fastest reversible move that stops what is failing. A move that
+reaches outside this checkout — a rollback, a switch turned off, a deploy — is
+taken by [running.md](references/running.md)'s **An effect outside this
+checkout is asked of the system that took it**, so a session taking the
+incident over does not roll back what is already back. The evidence
 about what changed — the last release, the last deploy, the last
 migration, the last change of configuration — ranks the moves, and they
 are applied in the order of what can be undone: the last change taken out

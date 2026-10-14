@@ -29,8 +29,9 @@ By [`references/design.md`](references/design.md)'s **Design runs when the
 shape changes**, skipped by the life cycle's **Tailoring is the rule**, the
 reason said where the work is planned. Read the change against the code before deciding: a change
 described as small may change the shape anyway, and one described as large
-may not. Where the owner asks for a design the step runs; what they asked
-for does not widen the scope it decides on.
+may not, by the life cycle's [**Depth is read off the change, not off the
+author's word**](references/lifecycle.md). Where the owner asks for a design
+the step runs; what they asked for does not widen the scope it decides on.
 
 ## 2. Gather the drivers and the inventory
 

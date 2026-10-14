@@ -52,8 +52,9 @@ evidence; a cancelled proposal never changes it.
 Publish code and current docs, and keep the change record as history, through
 the authorized workflow before marking the work accepted in the tracker. If
 publishing, syncing or archiving is unfinished, keep closure pending and make
-resuming safe to repeat. Do not reapply a change already landed, discard its
-evidence or turn it back into ready work.
+resuming safe to repeat, by [**An effect outside this checkout is asked of the
+system that took it**](references/running.md). Do not reapply a change already
+landed, discard its evidence or turn it back into ready work.
 
 Once the stage's own DONE WHEN holds on the accepted revision, close its tasks
 and the stage, referencing that evidence. If the tracker cannot update them

@@ -56,13 +56,18 @@ or stays out.
 ## 3. Reversible first
 
 The release is where the work stops being safe to undo, so the reverse of
-every step is decided before the step runs: what undoes it, who can run
-the undo, how long it takes. Deciding the rollback while the rollout is
-failing costs the incident its fastest move — `handle-incident`'s restore
-works on the reverses the release named. What the project's own pipeline
-does decides the shape of the steps: where it deploys as one step with its
-rollback, that is the release's one step; where it can widen a change by
-environment, the change goes out narrowest first and widens step by step
+every step is decided before the step runs: what undoes it, who can run the
+undo, how long it takes. Every step that reaches outside — the version, the
+release, the tag, the migration, the widening of a rollout — is taken by
+[running.md](references/running.md)'s **An effect outside this checkout is
+asked of the system that took it**: a release resumed after a stop asks
+the registry, the forge and the pipeline what is already out there. Deciding
+the rollback while the rollout is failing costs the incident its fastest
+move — `handle-incident`'s restore works on the reverses the release named.
+What the project's own pipeline does decides the shape of the steps: where it
+deploys as one step with its rollback, that is the release's one step; where
+it can widen a change by environment, the change goes out narrowest first and
+widens step by step
 (progressive delivery), each widening behind what the product can already
 call off in flight (its feature flags).
 

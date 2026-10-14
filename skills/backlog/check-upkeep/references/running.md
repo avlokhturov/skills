@@ -32,7 +32,11 @@ knows what to do; the decision and its assumptions go into the feature's
 decision log and later into the pull request. The agent **stops** instead when
 the choice is hard to reverse (an architectural fork), costly if wrong
 (security, data, money, public interfaces, migrations), changes product
-behaviour beyond the spec, or conflicts with an earlier decision. It then
+behaviour beyond the spec, or conflicts with an earlier decision. Which of the
+two a choice is, is judged by [lifecycle.md](lifecycle.md)'s **Depth is read
+off the change, not off the author's word**, from the decisions the preflight
+already put to the owner; where it is arguable, the choice stops for the owner
+and the preflight answers it in advance where it can. It then
 pauses only the affected work, continues the independent rest, reaches the
 owner the way the harness allows, and sends a ready decision: the problem and
 where it came from, what is blocked and what continues, the options compared
@@ -301,6 +305,34 @@ closing out — names each run that passed its forecast with no end recorded,
 with what it last did and when, and offers to take it over or to end its
 record. None of them reads a taken task with a dead run behind it as work in
 progress.
+
+**An effect outside this checkout is asked of the system that took it.** A
+run that stops, a coordinator that resumes it, a fresh run of the same work and
+a session that takes one over all have to tell an action that already happened
+from one that never started, and nothing local answers it: a stage's status and
+the run's record say where the work had got to, and the gap between the record
+and the effect is exactly where a stopped run dies. So an action that reaches
+outside this checkout — a branch or a tag pushed, a pull request opened, a
+version published, a release created, a deploy or a rollout widened, a
+migration applied, a message sent, an item created or closed — asks the outside
+system that holds it before it is taken, and is taken on that answer: the forge
+for the branch, the tag and the pull request; the registry for the version; the
+pipeline or the environment for the release, the deploy and the width it
+reached; the database or the deployment record for the migration; the tracker
+for the item, by the search its filing already makes. A refusal that says it is
+already there — a version that exists, a pull request already open for this
+branch, a tag already pushed, a migration that reports itself applied — is that
+answer and not a failure: it is read as done, recorded as done, and the run
+goes on. Where nothing outside can be asked, because the effect leaves no state
+to read — a message sent to a person — the intent is written where a resume
+finds it before the effect and its outcome after it, and a resume that finds
+the intent with no outcome asks the one it reached, or the owner, rather than
+repeating it. An effect that already happened is never carried out again to
+make a record true: the record is written from what the outside system says.
+This is [checks.md](checks.md)'s **A state not yet known is not a good one**
+applied to what the run does, and it is owed most where a second one cannot be
+undone: a released version, a paid deploy, an issue on someone else's project,
+a message a person has read.
 
 **A submitted branch is frozen.** Once its pull request is open and its run
 has started, a branch carries only what review sends back to it: the fix for

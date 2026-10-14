@@ -27,6 +27,11 @@ Cover both sides, with parallel reviewers where useful:
   [`references/design.md`](references/design.md)'s **Review before building**,
   which is asked before the rest. A finding here goes to the owner as the
   frame to settle, not into another round of fixes.
+- **The checks the change touched:** every changed test, expected value, skip
+  mark and new suppression, read against the requirements the change moved, by
+  [`references/checks.md`](references/checks.md)'s **A check changes only with
+  the requirement it encodes**. A check that got weaker is a blocking
+  finding.
 - **Behaviour and requirements:** missing or wrong behaviour, unwanted scope,
   regression risk, interactions between tasks, failure handling, and whether
   the tests would catch the important failures. A bug or short change is

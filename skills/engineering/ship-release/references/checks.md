@@ -50,6 +50,21 @@ the check demands what the work does not owe, the check is the defect, and
 fixing it is the work, said with its cost. If the person orders a skip anyway,
 say in one line what ships unproven, and file it as a finding.
 
+**A check changes only with the requirement it encodes.** A check is the
+change's judge, so it is off limits to the change it judges: a test, an
+assertion, an expected value, a skip mark, a suppression of a type or lint
+error and a gate's threshold may be edited only where the requirement they
+encode changed, and the change says which requirement, in the task, the
+spec's change record or the commit. Every other edit that makes a check
+easier to pass is a finding, whatever it is called: an assertion deleted or
+loosened, an expected value fitted to what the code now returns, a test
+skipped, a warning, a type error or a lint rule silenced, an exemption
+widened, a threshold lowered. A green reached through a weaker check is not a
+green, and the run says so and files it rather than reporting the work done.
+Where the check itself is the defect — it demands what the work does not owe,
+by **A gate that refuses is not routed around** — fixing the check is the
+work, and the change says which requirement made it wrong.
+
 **What a gate will demand is known before the work starts.** Shift left: the
 checks the work must pass, and what each will ask of it — a record, a document,
 an approval only the owner can give — are read when the work is prepared (at

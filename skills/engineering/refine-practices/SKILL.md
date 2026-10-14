@@ -1,6 +1,6 @@
 ---
 name: refine-practices
-description: "Hold a retrospective over the work since the last one: read the run records, findings, reviews, corrections and transcripts, review the project's active practices against what actually happened, turn repeated errors into fixes for their class, and land the accepted fixes in one change. Use when the user asks for a retrospective or agrees to a proposed one; it starts only on the owner's request or agreement."
+description: "Hold a retrospective over the work since the last one: read the run records, findings, reviews, corrections and transcripts, review the project's active practices against what actually happened, turn repeated errors into fixes for their class, propose retiring or loosening the practices that caught nothing and no longer pay for what they cost, and land the accepted fixes in one change. Use when the user asks for a retrospective or agrees to a proposed one; it starts only on the owner's request or agreement."
 ---
 
 # Refine practices
@@ -8,8 +8,10 @@ description: "Hold a retrospective over the work since the last one: read the ru
 A **retrospective** over the work since the last one. It reads what happened,
 finds the errors that repeated, and turns each class into its strongest fix:
 removing the cause, a check that catches the class, or a practice every agent
-reads. Its practices live in `docs/practices/`, one file per practice, plus
-one line in the agent doc.
+reads. It reads the other way too: a practice that caught nothing in the
+period, and what it costs, is a proposal to retire or loosen. Its practices
+live in `docs/practices/`, one file per practice, plus one line in the agent
+doc.
 
 This project's **backlog integration** should have been provided to you: how
 its gate is run, how its tracker is driven, where its vision and charters
@@ -80,7 +82,32 @@ proposal is checked first, so a class already retired is not filed again.
 - **Absorbed**: a check, or the change that removed the cause, now covers
   what the practice said. Retire it to that check or change.
 
-## 4. Propose fixes for the repeated errors
+## 4. What the period says about retiring
+
+The same reading, the other way round: which of the project's active practices
+caught nothing in the period, and what each of them costs — the time it takes
+from every run, the attention it asks of the owner and of the agent, the work
+it adds where it does fire. A practice that caught nothing is a candidate:
+where its reason no longer holds, it is proposed for retiring or for loosening
+— the narrower step, the lower frequency, the rule kept and its paperwork
+dropped — with what it would have caught, what it costs now and what its
+absence would let through. It is a proposal for the owner, like any other fix
+here, and nothing is retired before the owner agrees.
+
+What stays, whatever the period held, and says so in one line rather than
+being proposed: a practice that guards a rare but expensive failure —
+publication, permissions, data loss, security, a step that cannot be taken
+back. Its cost is paid for by the failure it prevents and not by what it
+caught, and a period in which nothing happened is not evidence that it is
+dead weight.
+
+Silence is read before it is counted. A practice nobody had the chance to
+apply in the period is said as not exercised, not as useless; and one that
+caught nothing while the work went well may be why it went well, which is
+said as the guess it is. Where a practice's own records show it firing
+often and changing nothing, that is the stronger case for loosening it.
+
+## 5. Propose fixes for the repeated errors
 
 The errors gathered in section 2 that recurred are judged by the set's
 [**A repeated failure is fixed as its class, not as its
@@ -106,9 +133,9 @@ A proposal that would put the active practices over the budget that rule sets
 is made together with a named candidate to retire: the number, and how it is
 changed, belongs to the rule and to the agent doc beside it, not to this step.
 
-## 5. One batch to the owner
+## 6. One batch to the owner
 
-Take everything from sections 3 and 4 to the owner in one message, by
+Take everything from sections 3, 4 and 5 to the owner in one message, by
 [**Come with the material**](references/deciding.md): each reviewed practice
 with its verdict and what retiring or keeping it changes, each class with
 its fix and the alternatives it beat, each item with a recommendation and
@@ -122,7 +149,7 @@ conflict — which of two practices survives, or a budget raised — is asked
 on its own, and one such question at a time; everything else is accepted
 as a batch or changed by named items.
 
-## 6. Land the accepted fixes in one change
+## 7. Land the accepted fixes in one change
 
 The accepted items land in one change under tracked work: practice files
 and agent doc lines together, the filed cause removals and checks beside

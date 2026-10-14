@@ -857,7 +857,12 @@ function descendantsOf(root) {
   try {
     for (const dir of readdirSync('/proc')) {
       if (!/^\d+$/.test(dir)) continue;
-      const stat = readFileSync(join('/proc', dir, 'stat'), 'utf8');
+      // A pid that ended between the listing and this read is not a reason to
+      // lose the whole tree: under load that race is common, and a tree that
+      // comes back empty leaves a command's detached descendants running past
+      // their bound. Only a listing that cannot be made at all is a failure.
+      let stat;
+      try { stat = readFileSync(join('/proc', dir, 'stat'), 'utf8'); } catch { continue; }
       const rest = stat.slice(stat.lastIndexOf(')') + 1);
       const m = /^ (\S) (-?\d+)/.exec(rest.slice(0, 40));
       if (m) parents.set(Number(dir), Number(m[2]));

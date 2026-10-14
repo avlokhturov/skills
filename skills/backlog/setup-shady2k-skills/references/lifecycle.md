@@ -55,6 +55,25 @@ never a silent omission. This generalizes what `take-task` said of design
 alone: sizing by size, uncertainty and risk was one stage's tailoring, and
 this is the cycle's.
 
+**Depth is read off the change, not off the author's word.** How far a piece
+of work is carried — which stages it passes, whether its spec is short or
+full, whether the design step runs, how deep the review and the acceptance go,
+and which of its choices stop for the owner — is decided from what the change
+is and where it lands, never from the account of the agent that made it: from
+the project's config and recorded conventions, from what the diff touches (a
+building block, a public interface, an owned state, an external dependency, a
+migration, people's data), and from what the work's own record already says. A
+depth argued from a predicate that a machine or another agent can apply is the
+rule; "it looked small to me" is the cheap path wearing a reason, and the
+author is the one least able to see its own blind spot. Where a setting and a
+predicate leave it open, the choice is written where the work is planned, with
+its reason and what being wrong would cost, and read by someone other than its
+author — the owner when the plan is accepted, the reviewer of the assembled
+revision, a check — and where the two sizes disagree, the deeper one is taken
+and the disagreement recorded. This is [design.md](design.md)'s **Design runs
+when the shape changes** written for the whole cycle, and what keeps
+**Tailoring is the rule** from becoming the agent's own permission to do less.
+
 **The outcome frame comes before the work is specified.** Before work is
 specified or run, its frame is established: what it is for and for whom, what
 matters most when something must give, the main path through it, and the

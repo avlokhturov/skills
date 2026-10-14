@@ -129,4 +129,8 @@ is short enough for a link; for a longer one, give the text to copy and the
 link to https://github.com/shady2k/skills/issues/new. Never send attachments or
 screenshots.
 
-Then give the user the issue's link and delete the draft file.
+Then give the user the issue's link and delete the draft file. A send that
+may already have happened — the session stopped between the call and the link —
+is found by the search of step 4 before anything is sent again, by [**An effect
+outside this checkout is asked of the system that took
+it**](references/running.md).

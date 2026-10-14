@@ -60,7 +60,8 @@ Anything left half-done is a trap the next agent cannot see.
 - **Documents:** keep the proposal and baseline references, where verified
   receipts are, and whether current specs were synced and the change archived
   or published. A change already landed must not be applied twice; an
-  unfinished sync must not look like closure.
+  unfinished sync must not look like closure, by [**An effect outside this
+  checkout is asked of the system that took it**](references/running.md).
 
 Done when nothing the next agent needs exists only in this session's memory or
 in an unnamed process.

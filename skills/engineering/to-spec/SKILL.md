@@ -30,7 +30,10 @@ The outcome must belong to the current milestone. If it does not, say so and sto
 ## 2. Choose the size, then draft
 
 Resolve the tracked work first. Choose the form by risk, uncertainty and scope,
-not by the project's TDD setting.
+not by the project's TDD setting, by the life cycle's [**Depth is read off
+the change, not off the author's word**](references/lifecycle.md). The form
+is named in the approval summary, so the owner sees the depth they are
+accepting.
 
 - **Short delta**, for small, understood work: current and intended behaviour,
   relevant constraints, the frame as one line — what it is for and what
